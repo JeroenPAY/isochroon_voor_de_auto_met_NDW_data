@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>NDW RVM – Gemeente viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,1" />
+
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; }
+    #map { width: 100%; height: 100%; }
+    .search-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(4px);
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      z-index: 1000;
+      width: 360px;
+      padding: 16px;
+      font-size: 13px;
+    }
+    .search-panel label { font-weight: 600; display: block; margin-bottom: 6px; }
+    .sub { font-size: 12px; color: #334155; margin-bottom: 12px; border-left: 3px solid #3b82f6; padding-left: 8px; }
+    .input-group { display: flex; gap: 8px; margin-bottom: 12px; }
+    #gemeenteInput { flex: 1; padding: 10px 12px; border-radius: 40px; border: 1px solid #cbd5e1; }
+    button { background: #1e293b; border: none; border-radius: 40px; padding: 8px 16px; font-weight: 600; color: white; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
+    button.primary { background: #c04f5a; }
+    button.primary:hover { background: #a23b45; }
+    button.secondary { background: #2c3e66; }
+    button.secondary:hover { background: #1e2a4a; }
+    button.toggle-btn { background: #4a6741; }
+    button.toggle-btn.active { background: #c04f5a; }
+    button.toggle-btn:hover { background: #3a5532; }
+    .btn-row { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+    .material-symbols-outlined { font-size: 18px; }
+    .status-msg { position: absolute; bottom: 20px; left: 20px; background: #0f172ad9; color: white; padding: 8px 18px; border-radius: 40px; font-size: 12px; z-index: 1000; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+    .legend { position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.75); color: white; padding: 8px 14px; border-radius: 24px; font-size: 11px; z-index: 1000; display: flex; gap: 16px; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="search-panel">
+  <label>🚗 NDW RVM – Gemeente viewer</label>
+  <div class="sub">Klik op een gemeentevlak om NDW-wegvakken te tonen</div>
+  <label for="gemeenteInput">Gemeente:</label>
+  <div class="input-group">
+    <input type="text" id="gemeenteInput" list="gemeenteSuggesties" placeholder="Bijv: Helmond, Eindhoven..." autocomplete="off">
+    <datalist id="gemeenteSuggesties">
+      <option>Helmond</option><option>Eindhoven</option><option>Amsterdam</option><option>Rotterdam</option><option>Utrecht</option>
+      <option>Den Haag</option><option>Groningen</option><option>Tilburg</option><option>Breda</option><option>Nijmegen</option>
+    </datalist>
+  </div>
+  <div class="btn-row">
+    <button id="zoekGemeenteBtn" class="primary"><span class="material-symbols-outlined">search</span> Zoek</button>
+    <button id="toggleGrenzenBtn" class="toggle-btn active"><span class="material-symbols-outlined">layers</span> Verberg grenzen</button>
+    <button id="resetViewBtn" class="secondary"><span class="material-symbols-outlined">public</span> Heel NL</button>
+  </div>
+</div>
+<div id="statusMsg" class="status-msg">✅ Gereed</div>
+<div class="legend">
+  <span>🟠 NDW wegvakken</span>
+  <span>🟢 Gemeentegrenzen</span>
+  <span>📝 Gemeentelabels</span>
+</div>
+
+<script>
+  const map = new maplibregl.Map({
+    container: "map",
+    style: {
+      version: 8,
+      glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+      sources: {
+        satellite: {
+          type: "raster",
+          tiles: ["https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png"],
+          tileSize: 256
+        },
+        rvm_segments: {
+          type: "vector",
+          tiles: ["https://maps.ndw.nu/api/v1/nwb/latest/mbtiles/roadSections/tiles/{z}/{x}/{y}.pbf"],
+          maxzoom: 14
+        }
+      },
+      layers: [
+        {
+          id: "background",
+          type: "raster",
+          source: "satellite",
+          paint: { "raster-opacity": 0.85, "raster-saturation": -0.7 }
+        },
+        {
+          id: "rvm-lines",
+          type: "line",
+          source: "rvm_segments",
+          "source-layer": "roadSections",
+          paint: { "line-color": "#f97316", "line-width": 2.5, "line-opacity": 0.95 },
+          filter: ["==", ["get", "municipalityName"], "Helmond"]
+        }
+      ]
+    },
+    center: [5.387, 52.156],
+    zoom: 9
+  });
+
+  map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+  let gemeenteData = null;
+  let grenzenZichtbaar = true;
+
+  function setStatus(text, isError = false) {
+    const el = document.getElementById("statusMsg");
+    el.style.backgroundColor = isError ? "#b91c1c" : "#0f172a";
+    el.innerText = isError ? `⚠️ ${text}` : `✓ ${text}`;
+    el.style.opacity = "1";
+    setTimeout(() => { el.style.opacity = "0"; }, 3000);
+  }
+
+  // Toggle functie voor gemeentegrenzen
+  function toggleGrenzen() {
+    const fillLayer = map.getLayer('gemeente-fill');
+    const outlineLayer = map.getLayer('gemeente-outline');
+    const labelsLayer = map.getLayer('gemeente-labels');
+    
+    if (grenzenZichtbaar) {
+      // Verberg de lagen
+      if (fillLayer) map.setLayoutProperty('gemeente-fill', 'visibility', 'none');
+      if (outlineLayer) map.setLayoutProperty('gemeente-outline', 'visibility', 'none');
+      if (labelsLayer) map.setLayoutProperty('gemeente-labels', 'visibility', 'none');
+      grenzenZichtbaar = false;
+      document.getElementById('toggleGrenzenBtn').innerHTML = '<span class="material-symbols-outlined">layers</span> Toon grenzen';
+      document.getElementById('toggleGrenzenBtn').style.background = '#2c3e66';
+      setStatus('Gemeentegrenzen verborgen', false);
+    } else {
+      // Toon de lagen
+      if (fillLayer) map.setLayoutProperty('gemeente-fill', 'visibility', 'visible');
+      if (outlineLayer) map.setLayoutProperty('gemeente-outline', 'visibility', 'visible');
+      if (labelsLayer) map.setLayoutProperty('gemeente-labels', 'visibility', 'visible');
+      grenzenZichtbaar = true;
+      document.getElementById('toggleGrenzenBtn').innerHTML = '<span class="material-symbols-outlined">layers</span> Verberg grenzen';
+      document.getElementById('toggleGrenzenBtn').style.background = '#4a6741';
+      setStatus('Gemeentegrenzen zichtbaar', false);
+    }
+  }
+
+  async function loadMunicipalities() {
+    setStatus("Gemeentegrenzen laden...", false);
+    
+    proj4.defs("EPSG:28992", "+proj=sterea +lat_0=52.15616055555555 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +towgs84=565.2369,50.0087,465.658,-0.406857,0.350733,-1.87035,4.0812 +units=m +no_defs");
+    const rdToWgs84 = proj4("EPSG:28992", "EPSG:4326");
+    
+    const url = "https://service.pdok.nl/kadaster/bestuurlijkegebieden/wfs/v1_0?service=WFS&version=2.0.0&request=GetFeature&typeName=bestuurlijkegebieden:Gemeentegebied&outputFormat=application/json&srsName=EPSG:28992";
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    function convertCoords(coords) {
+      if (typeof coords[0] === 'number') {
+        return rdToWgs84.forward([coords[0], coords[1]]);
+      }
+      return coords.map(c => convertCoords(c));
+    }
+    
+    const features = data.features.map(f => {
+      const geom = f.geometry;
+      let newCoords;
+      if (geom.type === 'Polygon') {
+        newCoords = geom.coordinates.map(ring => convertCoords(ring));
+      } else {
+        newCoords = geom.coordinates.map(poly => poly.map(ring => convertCoords(ring)));
+      }
+      return {
+        type: "Feature",
+        properties: { naam: f.properties.naam, code: f.properties.code },
+        geometry: { type: geom.type, coordinates: newCoords }
+      };
+    });
+    
+    gemeenteData = { type: "FeatureCollection", features: features };
+    
+    if (map.getSource('gemeenten')) {
+      map.getSource('gemeenten').setData(gemeenteData);
+    } else {
+      map.addSource('gemeenten', { type: 'geojson', data: gemeenteData });
+    }
+    
+    // Verwijder oude lagen
+    ['gemeente-fill', 'gemeente-outline', 'gemeente-labels'].forEach(id => {
+      if (map.getLayer(id)) map.removeLayer(id);
+    });
+    
+    map.addLayer({
+      id: 'gemeente-fill',
+      type: 'fill',
+      source: 'gemeenten',
+      paint: { 'fill-color': '#86efac', 'fill-opacity': 0.55, 'fill-outline-color': '#166534' }
+    });
+    
+    map.addLayer({
+      id: 'gemeente-outline',
+      type: 'line',
+      source: 'gemeenten',
+      paint: { 'line-color': '#22c55e', 'line-width': 2 }
+    });
+    
+    map.addLayer({
+      id: 'gemeente-labels',
+      type: 'symbol',
+      source: 'gemeenten',
+      layout: {
+        'text-field': ['get', 'naam'],
+        'text-font': ['Open Sans Regular'],
+        'text-size': 12,
+        'text-anchor': 'center'
+      },
+      paint: { 'text-color': '#1a3a2a', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }
+    });
+    
+    setStatus(`${features.length} gemeenten geladen!`, false);
+  }
+
+  // Klik op gemeente
+  map.on('click', 'gemeente-fill', (e) => {
+    const naam = e.features[0].properties.naam;
+    document.getElementById('gemeenteInput').value = naam;
+    map.setFilter('rvm-lines', ['==', ['get', 'municipalityName'], naam]);
+    setStatus(`${naam} - NDW wegvakken geladen`, false);
+    
+    const feature = gemeenteData.features.find(f => f.properties.naam === naam);
+    if (feature) {
+      const bbox = turf.bbox(feature);
+      map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
+    }
+  });
+  
+  map.on('click', 'gemeente-labels', (e) => {
+    const naam = e.features[0].properties.naam;
+    document.getElementById('gemeenteInput').value = naam;
+    map.setFilter('rvm-lines', ['==', ['get', 'municipalityName'], naam]);
+    setStatus(`${naam} - NDW wegvakken geladen`, false);
+  });
+  
+  map.on('mouseenter', 'gemeente-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'gemeente-fill', () => { map.getCanvas().style.cursor = ''; });
+  
+  // NDW popup
+  map.on('click', 'rvm-lines', (e) => {
+    const p = e.features[0].properties;
+    let html = `<strong>🛣️ NDW Wegvak</strong><hr>`;
+    ['roadSectionId', 'municipalityName', 'drivingDirection', 'carriagewayTypeCode'].forEach(k => {
+      if (p[k]) html += `<b>${k}:</b> ${p[k]}<br>`;
+    });
+    new maplibregl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
+  });
+  
+  map.on('mouseenter', 'rvm-lines', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'rvm-lines', () => { map.getCanvas().style.cursor = ''; });
+  
+  // UI Events
+  document.getElementById('zoekGemeenteBtn').addEventListener('click', () => {
+    const naam = document.getElementById('gemeenteInput').value.trim();
+    if (naam && gemeenteData) {
+      map.setFilter('rvm-lines', ['==', ['get', 'municipalityName'], naam]);
+      const feature = gemeenteData.features.find(f => f.properties.naam === naam);
+      if (feature) {
+        const bbox = turf.bbox(feature);
+        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
+      }
+      setStatus(`Filter: ${naam}`, false);
+    }
+  });
+  
+  document.getElementById('toggleGrenzenBtn').addEventListener('click', toggleGrenzen);
+  
+  document.getElementById('resetViewBtn').addEventListener('click', () => {
+    map.flyTo({ center: [5.387, 52.156], zoom: 8.5, duration: 1000 });
+    setStatus('Heel Nederland', false);
+  });
+  
+  map.on('load', async () => {
+    await loadMunicipalities();
+  });
+</script>
+</body>
+</html>
