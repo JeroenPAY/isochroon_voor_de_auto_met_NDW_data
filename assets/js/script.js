@@ -1,3 +1,4 @@
+// data/js/script.js
 let map;
 let currentBasemap = 'pdok-grijs';
 
@@ -5,7 +6,6 @@ function initMap(center, zoom) {
     console.log("[Script] Initialiseer map...");
     
     const loadingStartTime = Date.now();
-
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = 'flex';
     
@@ -38,12 +38,13 @@ function initMap(center, zoom) {
         }
         
         window.GemeenteManager?.loadGemeenteData('0794');
-        setTimeout(positionSidebar, 500);
+        setTimeout(() => {
+            if (window.positionSidebar) window.positionSidebar();
+        }, 500);
     });
     
     map.on('error', e => console.error('[Script] MapLibre error:', e.error));
     
-    // Failsafe (BELANGRIJK)
     setTimeout(() => {
         console.warn("[Script] Fallback loading hide");
         const overlay = document.getElementById('loading-overlay');
@@ -54,7 +55,7 @@ function initMap(center, zoom) {
 function getMapStyle() {
     return {
         "version": 8,
-        "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",  // <-- DIT IS CRUCIAAL VOOR LABELS!
+        "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
         "sources": {
             "pdok-grijs": { 
                 "type": "raster", 
@@ -122,148 +123,25 @@ function getMapStyle() {
 function setupMapFeatures() {
     window.setupLegendControls?.(map);
     
-    // Controls
     map.addControl(new maplibregl.NavigationControl({
         showCompass: false,
         showZoom: true
     }), 'bottom-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true }));
     
-    // Layers
     window.addArrowLayers?.(map) || console.error("[Script] addArrowLayers niet gevonden!");
     
-    // Event listeners
-    setupGemeenteEventListeners();
     setupBasemapRadio();
-    setupIsochroonStartButton();
     window.setupPopupHandlers?.(map);
     
-    // Alleen isochroon calculator
-    initIsochroonCalculator();
-    
-    // Update sidebar
-    window.CalculationsSidebar?.init();
-    window.CalculationsSidebar?.updateForGemeente('Helmond');
-}
-
-function initIsochroonCalculator() {
-    if (!window.IsochroonCalculator?.init) {
-        console.error("[Script] IsochroonCalculator niet beschikbaar!");
-        window.utils?.showNotification(
-            "Isochroon calculator niet beschikbaar",
-            "error",
-            5000
-        );
-        return false;
+    // Initialiseer isochroon calculator via sidebar
+    if (window.CalculationsSidebar) {
+        window.CalculationsSidebar.init(map);
     }
     
-    console.log("[Script] Initialiseer isochroon calculator...");
-    const success = window.IsochroonCalculator.init();
-    
-    if (success) {
-        setTimeout(() => {
-            const size = window.IsochroonCalculator.getGraphSize?.() || 0;
-            console.log(`[Script] Isochroon graph bevat ${size} nodes`);
-            
-            if (size === 0) {
-                console.warn(`[Script] Isochroon graph is leeg!`);
-                window.utils?.showNotification(
-                    "Isochroon data niet geladen. Controleer cost_helmond.js bestand.",
-                    "warning",
-                    5000
-                );
-            }
-        }, 1500);
-    }
-    
-    return success;
-}
-
-function setupGemeenteEventListeners() {
-    // Gemeente change
-    document.addEventListener('gemeenteChanged', (e) => {
-        const { gemeenteNaam } = e.detail;
-        console.log("[Script] Gemeente gewijzigd:", gemeenteNaam);
-        
-        updateGemeenteFeatures(gemeenteNaam);
-        
-        if (gemeenteNaam !== 'Helmond') {
-            window.utils?.showNotification(
-                `Isochroonberekening is momenteel alleen beschikbaar voor Helmond`,
-                'warning',
-                4000
-            );
-        }
-    });
-    
-    // Event voor wanneer gemeenten geladen zijn
-    document.addEventListener('gemeentenLoaded', (e) => {
-        console.log(`[Script] ${e.detail.count} gemeenten geladen op de kaart`);
-        window.utils?.showNotification(
-            `${e.detail.count} gemeenten geladen`,
-            'success',
-            2000
-        );
-    });
-    
-    // Isochroon events
-    document.addEventListener('isochroonCalculated', (e) => {
-        const { success, edges } = e.detail;
-        if (success) {
-            window.utils?.showNotification(
-                `${edges?.length || 0} wegen bereikbaar binnen limiet`,
-                'success',
-                3000
-            );
-        }
-    });
-    
-    // Node selected
-    document.addEventListener('nodeSelected', (e) => {
-        const { nodeId, inputField, coordinates } = e.detail;
-        console.log(`[Script] Node ${nodeId} geselecteerd voor ${inputField}`);
-        
-        const isochroonInput = document.getElementById('isochroonStartNode');
-        if (isochroonInput && inputField === 'isochroonStartNode') {
-            isochroonInput.value = nodeId;
-        }
-        
-        if (coordinates && map) {
-            map.flyTo({
-                center: coordinates,
-                zoom: 15,
-                duration: 1000
-            });
-        }
-    });
-    
-    // Arrows loaded event
-    document.addEventListener('arrowsLoaded', (e) => {
-        const { type, count } = e.detail || {};
-        if (type && window.updateArrowCounts) {
-            window.updateArrowCounts(type, count);
-        }
-    });
-}
-
-function updateGemeenteFeatures(gemeenteNaam) {
-    // Update arrow filters
-    window.updateArrowFilters?.(gemeenteNaam);
-    
-    // Update RVM filter
-    if (map?.getLayer('rvm-lines')) {
-        map.setFilter('rvm-lines', ["==", ["get", "municipalityName"], gemeenteNaam]);
-        console.log("[Script] RVM filter geupdate:", gemeenteNaam);
-    }
-    
-    // Update sidebar
-    window.CalculationsSidebar?.updateForGemeente(gemeenteNaam);
-    
-    // Clear isochroon
-    if (window.IsochroonCalculator?.getCurrentIsochroon()) {
-        console.log("[Script] Wis isochroon bij gemeentewissel");
-        window.IsochroonCalculator.clearIsochroonFromMap(map);
-        window.utils?.showNotification(`Isochroon gewist (gemeente gewijzigd naar ${gemeenteNaam})`, 'info');
+    // Update sidebar voor Helmond
+    if (window.CalculationsSidebar && window.CalculationsSidebar.updateForGemeente) {
+        window.CalculationsSidebar.updateForGemeente('Helmond');
     }
 }
 
@@ -300,86 +178,21 @@ function setupBasemapRadio() {
     });
 }
 
-function setupIsochroonStartButton() {
-    console.log("[Script] Setup isochroon start knop");
-    
-    setTimeout(() => {
-        const input = document.getElementById('isochroonStartNode');
-        if (!input) {
-            console.error("[Script] isochroonStartNode input niet gevonden!");
-            return;
+function positionSidebar() {
+    const sidebar = document.getElementById('calculations-sidebar');
+    if (sidebar && map) {
+        const canvas = map.getCanvas();
+        if (canvas) {
+            sidebar.style.top = '10px';
+            sidebar.style.right = '10px';
         }
-        
-        const button = createIsochroonButton('Kies startpunt');
-        input.parentNode.insertBefore(button, input.nextSibling);
-        console.log("[Script] Isochroon start knop toegevoegd");
-    }, 1000);
-}
-
-function createIsochroonButton(buttonText) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'isochroon-select-button';
-    button.innerHTML = `
-        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">
-            location_on
-        </span>
-        ${buttonText}
-    `;
-    button.style.cssText = `
-        margin-left: 8px;
-        padding: 6px 12px;
-        background-color: #377d39;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 12px;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        transition: background-color 0.2s;
-    `;
-    
-    button.addEventListener('mouseenter', () => button.style.backgroundColor = '#2e672f');
-    button.addEventListener('mouseleave', () => button.style.backgroundColor = '#377d39');
-    
-    button.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        console.log(`[Script] Startpunt selectie voor isochroon`);
-        
-        if (window.NodeSelector) {
-            window.NodeSelector.setMode('isochroon', 'isochroonStartNode');
-            
-            const nodesVisible = window.NodeSelector.toggleNodes('isochroonStartNode');
-            
-            if (!nodesVisible) {
-                window.utils?.showNotification(
-                    'Geen startpunten beschikbaar voor huidige gemeente',
-                    'warning',
-                    3000
-                );
-            }
-        } else {
-            console.error('[Script] NodeSelector niet beschikbaar');
-            window.utils?.showNotification(
-                'Startpunt selector functionaliteit niet beschikbaar',
-                'error',
-                3000
-            );
-        }
-    });
-    
-    return button;
+    }
 }
 
 // DOM ready
 document.addEventListener("DOMContentLoaded", () => {
     console.log("[Script] DOM geladen");
     
-    // Wacht even om zeker te zijn dat alle scripts geladen zijn
     setTimeout(() => {
         window.GemeenteManager?.setupGemeenteInput();
     }, 100);
@@ -399,33 +212,6 @@ function debounce(func, wait) {
         timeout = setTimeout(() => func(...args), wait);
     };
 }
-
-function positionSidebar() {
-    const sidebar = document.getElementById('calculations-sidebar');
-    if (sidebar && map) {
-        const canvas = map.getCanvas();
-        
-        if (canvas) {
-            sidebar.style.top = '10px';
-            sidebar.style.right = '10px';
-        }
-    }
-}
-
-// Global error handling
-window.addEventListener('error', e => {
-    console.error('[Script] JavaScript error:', e.message, 'at', e.filename, 'line', e.lineno);
-    window.utils?.showNotification(`Er is een fout opgetreden: ${e.message}`, 'error', 5000);
-});
-
-window.addEventListener('online', () => {
-    console.log("[Script] Netwerk hersteld");
-    
-    if (window.IsochroonCalculator?.getGraphSize() === 0) {
-        console.log("[Script] Herinitialiseer isochroon calculator");
-        setTimeout(() => window.IsochroonCalculator?.init?.(), 1500);
-    }
-});
 
 window.initMap = initMap;
 window.positionSidebar = positionSidebar;
