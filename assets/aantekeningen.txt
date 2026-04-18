@@ -3,6 +3,7 @@ Toevoegen:
     gemeente zoeken op input button.
     Hoe lang onderweg indicatie op popup van isochroon wegen
     zoom terug naar gemeente
+    kleur voor wegen waar auto niet opmag
 
 Maybe:
     Alert met gebroken gemeente.
