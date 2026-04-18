@@ -1,0 +1,3950 @@
+{
+    "version": 8,
+    "name": "NDW Modular Basic background map",
+    "owner": "NDW Location Services",
+    "metadata": {
+        "title": "Modulaire achtergrondkaart NDW",
+        "desc": "Een stijl bestand, met daarin verschillende gegroepeerde stijl lagen, die geconfigureerd kunnen worden door de ontwikkelaar naar wens en behoefte van de applicatie. Waarin opvallende (relevant) en onopvallende (context) informatie lagen visueel getoond kunnen worden in combinatie met eigen informatie lagen om zo het beste beeld te creëren.",
+        "design": "This Way Cartography; Niene Boeijen"
+    },
+    "center": [
+        5.121,
+        52.08
+    ],
+    "zoom": 8,
+    "sprite": [
+        {
+            "id": "NDW",
+            "url": "https://maps.ndw.nu/styles/sprites/osm-default/osm-default"
+        },
+        {
+            "id": "sdf",
+            "url": "https://maps.ndw.nu/styles/ndw-basemap/dev/sdf"
+        },
+        {
+            "id": "custom",
+            "url": "https://maps.ndw.nu/styles/ndw-basemap/dev/custom_ndw"
+        }
+    ],
+    "glyphs": "https://maps.ndw.nu/styles/glyphs/{fontstack}/{range}.pbf",
+    "sources": {
+        "pdok_luchtfoto": {
+            "type": "raster",
+            "tiles": [
+                "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg"
+            ],
+            "tileSize": 256
+        },
+        "pdok_brt": {
+            "type": "vector",
+            "tiles": [
+                "https://api.pdok.nl/kadaster/brt-achtergrondkaart/ogc/v1/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt"
+            ],
+            "minzoom": 0,
+            "maxzoom": 16
+        },
+        "pdok_bgt": {
+            "type": "vector",
+            "tiles": [
+                "https://api.pdok.nl/lv/bgt/ogc/v1/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt"
+            ],
+            "minzoom": 17,
+            "maxzoom": 17,
+            "attribution": "<a href='https://api.pdok.nl/'>PDOK</a>"
+        },
+        "pdok_bag": {
+            "type": "vector",
+            "tiles": [
+                "https://api.pdok.nl/lv/bag/ogc/v1/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt"
+            ],
+            "minzoom": 17,
+            "maxzoom": 17
+        },
+        "pdok_bestuurlijkegebieden": {
+            "type": "vector",
+            "tiles": [
+                "https://api.pdok.nl/kadaster/bestuurlijkegebieden/ogc/v1/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt"
+            ],
+            "minzoom": 6,
+            "maxzoom": 16
+        },
+        "ndw_roadSections": {
+            "type": "vector",
+            "url": "https://maps.ndw.nu/api/v1/nwb/latest/mbtiles/roadSections/",
+            "minzoom": 4,
+            "maxzoom": 19,
+            "attribution": "<a href='https://maps.ndw.nu/'>NDW</a>"
+        },
+        "ndw_hectometreSigns": {
+            "type": "vector",
+            "url": "https://maps.ndw.nu/api/v1/nwb/latest/mbtiles/hectometreSigns/"
+        },
+        "ndw_wkdParkingAreas": {
+            "type": "vector",
+            "url": "https://maps.ndw.nu/api/v1/wkdParkingAreas/latest/mbtiles/segments/"
+        }
+    },
+    "layers": [
+        {
+            "id": "Achtergrond",
+            "type": "background",
+            "metadata": {
+                "group": "context-map",
+                "type": "context",
+                "legendName": "Achtergrond kleur",
+                "desc": "",
+                "insertBefore": "background"
+            },
+            "paint": {
+                "background-color": "#DDE5EF"
+            }
+        },
+        {
+            "id": "PDOK-Luchtfoto",
+            "type": "raster",
+            "source": "pdok_luchtfoto",
+            "metadata": {
+                "group": "context-luchtfoto",
+                "type": "context",
+                "legendName": "PDOK luchtfoto Actueel 8cm rgb",
+                "desc": "",
+                "insertBefore": "background"
+            },
+            "layout": {
+                "visibility": "none"
+            },
+            "paint": {}
+        },
+        {
+            "id": "BRT-Land-en-zee",
+            "type": "fill",
+            "source": "pdok_brt",
+            "source-layer": "nederland",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-blue",
+                "type": "context",
+                "legendName": "BRT: Land & water kleuren",
+                "source": "BRT",
+                "desc": "",
+                "insertBefore": "background"
+            },
+            "layout": {
+                "visibility": "visible"
+            },
+            "paint": {
+                "fill-color": [
+                    "match",
+                    [
+                        "get",
+                        "vistext"
+                    ],
+                    "land/grens (NL)",
+                    "#f5f5f5",
+                    "(zee)water",
+                    "#DDE5EF",
+                    "onderlegger Nederland",
+                    "#f5f5f5",
+                    "yellow"
+                ]
+            }
+        },
+        {
+            "id": "BRT-Terreinvlak-bebouwd-gebied",
+            "type": "fill",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-grey",
+                "type": "context",
+                "legendName": "Bebouwd gebied",
+                "desc": "van zoom 6 tot met 12",
+                "insertBefore": "background"
+            },
+            "source": "pdok_brt",
+            "source-layer": "terreinvlak",
+            "filter": [
+                "==",
+                "vistext",
+                "bebouwd gebied"
+            ],
+            "paint": {
+                "fill-color": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    6,
+                    "#eaeaea",
+                    10,
+                    "#eaeaea",
+                    13,
+                    "#eaeaea"
+                ],
+                "fill-outline-color": "#dedede",
+                "fill-opacity": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    8,
+                    0.1,
+                    10,
+                    1,
+                    13,
+                    0.8
+                ]
+            }
+        },
+        {
+            "id": "BRT-Waterdeelvlak",
+            "type": "fill",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-blue",
+                "type": "context",
+                "legendName": "BRT-Waterdeelvlakken",
+                "desc": "zee, waterloop, ",
+                "insertBefore": "background"
+            },
+            "source": "pdok_brt",
+            "source-layer": "waterdeelvlak",
+            "maxzoom": 17,
+            "layout": {
+                "visibility": "visible"
+            },
+            "paint": {
+                "fill-color": [
+                    "match",
+                    [
+                        "get",
+                        "vistext"
+                    ],
+                    "zee",
+                    "#DDE5EF",
+                    "meer, plas",
+                    "#DDE5EF",
+                    "droogvallend",
+                    "#DDE5EF",
+                    "waterloop",
+                    "#DDE5EF",
+                    "overig",
+                    "#DDE5EF",
+                    "water onder brug",
+                    "#f5f5f5",
+                    "purple"
+                ]
+            }
+        },
+        {
+            "id": "BGT-waterdeel",
+            "type": "fill",
+            "source": "pdok_bgt",
+            "source-layer": "waterdeel",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-blue",
+                "type": "context",
+                "legendName": "BGT Waterdeel vlakken",
+                "desc": "zee, waterloop, ",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "relatieve_hoogteligging",
+                    0
+                ],
+                [
+                    "==",
+                    "status",
+                    "bestaand"
+                ]
+            ],
+            "paint": {
+                "fill-color": "#DDE5EF"
+            }
+        },
+        {
+            "id": "BRT-Terreinvlak-groen",
+            "type": "fill",
+            "source": "pdok_brt",
+            "source-layer": "terreinvlak",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-green",
+                "type": "context",
+                "legendName": "BRT terreinvlakken groen",
+                "desc": "Bos, bos moeras, riet, ",
+                "insertBefore": "background"
+            },
+            "minzoom": 6,
+            "maxzoom": 17,
+            "filter": [
+                "any",
+                [
+                    "==",
+                    "vistext",
+                    "bos"
+                ],
+                [
+                    "==",
+                    "vistext",
+                    "Bos met dras, moeras, riet"
+                ],
+                [
+                    "==",
+                    "vistext",
+                    "bos: dras, moeras, riet"
+                ]
+            ],
+            "paint": {
+                "fill-color": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    6,
+                    "#e3e3dd",
+                    10,
+                    "#e3e3dd"
+                ],
+                "fill-outline-color": "#D3D9D0"
+            }
+        },
+        {
+            "id": "BRT-Terreinvlak-geel",
+            "type": "fill",
+            "source": "pdok_brt",
+            "source-layer": "terreinvlak",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-yellow",
+                "type": "context",
+                "legendName": "BRT terreinvlakken niet groen",
+                "desc": "heide, zand, steen",
+                "insertBefore": "background"
+            },
+            "minzoom": 9,
+            "maxzoom": 17,
+            "filter": [
+                "all",
+                [
+                    "!=",
+                    "vistext",
+                    "bos"
+                ],
+                [
+                    "!=",
+                    "vistext",
+                    "Bos met dras, moeras, riet"
+                ],
+                [
+                    "!=",
+                    "vistext",
+                    "bebouwd gebied"
+                ],
+                [
+                    "!=",
+                    "vistext",
+                    "bos: dras, moeras, riet"
+                ],
+                [
+                    "!=",
+                    "vistext",
+                    "aanlegsteiger"
+                ]
+            ],
+            "paint": {
+                "fill-color": [
+                    "match",
+                    [
+                        "get",
+                        "vistext"
+                    ],
+                    "steenglooing",
+                    "#c0babc",
+                    "zand",
+                    "#f5f4f0",
+                    "Zand met dras, moeras, riet",
+                    "#f5f4f0",
+                    "zand: dras, moeras, riet",
+                    "#f5f4f0",
+                    "heide",
+                    "#eae3ee",
+                    "Heide met dras, moeras, riet",
+                    "#eae3ee",
+                    "heide: dras, moeras, riet",
+                    "#eae3ee",
+                    "aanlegsteiger",
+                    "#ffffff",
+                    "kassengebied",
+                    "#cbcdd9",
+                    "overig",
+                    "#a3a7aa",
+                    "grasland: dras, moeras, riet",
+                    "#f5f4f0",
+                    "resterend: dras, moeras, riet",
+                    "#f5f4f0",
+                    "blue"
+                ]
+            }
+        },
+        {
+            "id": "BGT-onbegroeidterreindeel",
+            "type": "fill",
+            "source": "pdok_bgt",
+            "source-layer": "onbegroeidterreindeel",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-grey",
+                "type": "context",
+                "legendName": "BGT onbegroeidterreindeel",
+                "desc": "hoogte 0, status bestaand",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "relatieve_hoogteligging",
+                    0
+                ],
+                [
+                    "==",
+                    "status",
+                    "bestaand"
+                ]
+            ],
+            "paint": {
+                "fill-color": [
+                    "match",
+                    [
+                        "get",
+                        "fysiek_voorkomen"
+                    ],
+                    "erf",
+                    "#fcfcfc",
+                    "zand",
+                    "#fcfcfc",
+                    "onverhard",
+                    "#e3e3dd",
+                    "open verharding",
+                    "#e3e3dd",
+                    "half verhard",
+                    "#e3e3dd",
+                    "gesloten verharding",
+                    "#fefefe",
+                    "#fefefe"
+                ]
+            }
+        },
+        {
+            "id": "BGT-begroeidterreindeel",
+            "type": "fill",
+            "source": "pdok_bgt",
+            "source-layer": "begroeidterreindeel",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-green",
+                "type": "context",
+                "legendName": "BGT begroeidterreindeel",
+                "desc": "hoogte 0, status bestaand",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "relatieve_hoogteligging",
+                    0
+                ],
+                [
+                    "==",
+                    "status",
+                    "bestaand"
+                ]
+            ],
+            "paint": {
+                "fill-color": [
+                    "match",
+                    [
+                        "get",
+                        "fysiek_voorkomen"
+                    ],
+                    "loofbos",
+                    "#e3e3dd",
+                    "gemengd bos",
+                    "#e3e3dd",
+                    "naaldbos",
+                    "#e3e3dd",
+                    "struiken",
+                    "#e3e3dd",
+                    "houtwal",
+                    "#e3e3dd",
+                    "duin",
+                    "#e0d6c5",
+                    "grasland overig",
+                    "#f2f2ed",
+                    "moeras",
+                    "#eae3d6",
+                    "rietland",
+                    "#eae3d6",
+                    "kwelder",
+                    "#cad1d5",
+                    "fruitteelt",
+                    "#e3e3dd",
+                    "boomteelt",
+                    "#e3e3dd",
+                    "bouwland",
+                    "#f2f2ed",
+                    "grasland agrarisch",
+                    "#f2f2ed",
+                    "groenvoorziening",
+                    "#e3e3dd",
+                    "overig",
+                    "yellow",
+                    "blue"
+                ],
+                "fill-outline-color": [
+                    "match",
+                    [
+                        "get",
+                        "fysiek_voorkomen"
+                    ],
+                    "loofbos",
+                    "#e3e3dd",
+                    "gemengd bos",
+                    "#e3e3dd",
+                    "naaldbos",
+                    "#e3e3dd",
+                    "struiken",
+                    "#e3e3dd",
+                    "houtwal",
+                    "#c8c8bd",
+                    "duin",
+                    "#e0d6c5",
+                    "grasland overig",
+                    "#f2f2ed",
+                    "moeras",
+                    "#eae3d6",
+                    "rietland",
+                    "#eae3d6",
+                    "kwelder",
+                    "#cad1d5",
+                    "fruitteelt",
+                    "#e3e3dd",
+                    "boomteelt",
+                    "#e3e3dd",
+                    "bouwland",
+                    "#f2f2ed",
+                    "grasland agrarisch",
+                    "#f2f2ed",
+                    "groenvoorziening",
+                    "#f2f2ed",
+                    "overig",
+                    "yellow",
+                    "blue"
+                ]
+            }
+        },
+        {
+            "id": "BGT-ondersteundendwegdeel",
+            "type": "fill",
+            "source": "pdok_bgt",
+            "source-layer": "ondersteunendwegdeel",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-grey",
+                "type": "context",
+                "legendName": "BGT ondersteunendwegdeel",
+                "desc": "hoogte 0, status bestaand",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "relatieve_hoogteligging",
+                    0
+                ],
+                [
+                    "==",
+                    "status",
+                    "bestaand"
+                ]
+            ],
+            "paint": {
+                "fill-color": [
+                    "match",
+                    [
+                        "get",
+                        "functie"
+                    ],
+                    "verkeerseiland",
+                    "#fefefe",
+                    "berm",
+                    [
+                        "match",
+                        [
+                            "get",
+                            "fysiek_voorkomen"
+                        ],
+                        "groenvoorziening",
+                        "#f2f2ed",
+                        "onverhard",
+                        "#e3e3dd",
+                        "open verharding",
+                        "#e3e3dd",
+                        "half verhard",
+                        "#e3e3dd",
+                        "gesloten verharding",
+                        "#fefefe",
+                        "yellow"
+                    ],
+                    "black"
+                ],
+                "fill-outline-color": [
+                    "match",
+                    [
+                        "get",
+                        "functie"
+                    ],
+                    "verkeerseiland",
+                    "#e3e3dd",
+                    "berm",
+                    [
+                        "match",
+                        [
+                            "get",
+                            "fysiek_voorkomen"
+                        ],
+                        "groenvoorziening",
+                        "#f2f2ed",
+                        "onverhard",
+                        "#e3e3dd",
+                        "open verharding",
+                        "#e3e3dd",
+                        "half verhard",
+                        "#e3e3dd",
+                        "gesloten verharding",
+                        "#fefefe",
+                        "yellow"
+                    ],
+                    "black"
+                ]
+            }
+        },
+        {
+            "id": "BRT-gebouwvlak",
+            "type": "fill",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-grey",
+                "type": "context",
+                "legendName": "BRT Gebouwvlak tot met 16",
+                "desc": "van zoom 13 tot met 16",
+                "insertBefore": "background"
+            },
+            "source": "pdok_brt",
+            "source-layer": "gebouwvlak",
+            "maxzoom": 17,
+            "paint": {
+                "fill-outline-color": "#dedede",
+                "fill-color": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    13,
+                    "#eaeaea",
+                    17,
+                    "#eaeaea"
+                ],
+                "fill-opacity": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    13,
+                    0.9,
+                    14,
+                    1
+                ]
+            }
+        },
+        {
+            "id": "BAG-standplaats",
+            "type": "fill",
+            "source": "pdok_bag",
+            "source-layer": "standplaats",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-grey",
+                "type": "context",
+                "legendName": "BAG standplaats",
+                "desc": "",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "status",
+                    "Plaats aangewezen"
+                ]
+            ],
+            "paint": {
+                "fill-color": "#eaeaea",
+                "fill-outline-color": "#dedede"
+            }
+        },
+        {
+            "id": "BAG-ligplaats",
+            "type": "fill",
+            "source": "pdok_bag",
+            "source-layer": "ligplaats",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-grey",
+                "type": "context",
+                "legendName": "BAG ligplaats",
+                "desc": "",
+                "insertBefore": "background"
+            },
+            "paint": {
+                "fill-color": "#eaeaea",
+                "fill-outline-color": "#dedede"
+            }
+        },
+        {
+            "id": "BAG-gebouwen",
+            "type": "fill",
+            "source": "pdok_bag",
+            "source-layer": "pand",
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Background-grey",
+                "type": "context",
+                "legendName": "BAG gebouw",
+                "desc": "",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "!=",
+                    [
+                        "get",
+                        "status"
+                    ],
+                    "Pand gesloopt"
+                ],
+                [
+                    "!=",
+                    [
+                        "get",
+                        "status"
+                    ],
+                    "Pand buiten gebruik"
+                ]
+            ],
+            "paint": {
+                "fill-color": "#eaeaea",
+                "fill-outline-color": "#dedede"
+            }
+        },
+        {
+            "id": "NDW-road-sections-bus",
+            "type": "line",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "context-roads",
+                "subGroup": "NWB-road-sections",
+                "type": "context",
+                "legendName": "Bus baan",
+                "desc": "Busbanen niet toegankelijk voor auto's",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    [
+                        "get",
+                        "carriagewayTypeCode"
+                    ],
+                    "BUS"
+                ],
+                [
+                    "!=",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "7"
+                ]
+            ],
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "butt",
+                "line-join": "round",
+                "line-sort-key": [
+                    "-",
+                    8,
+                    [
+                        "to-number",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ]
+                    ]
+                ]
+            },
+            "paint": {
+                "line-dasharray": [
+                    1,
+                    0.3
+                ],
+                "line-color": [
+                    "match",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "0",
+                    "hsl(43, 93%, 88%)",
+                    "1",
+                    "hsl(43, 93%, 88%)",
+                    "2",
+                    "hsl(43, 93%, 88%)",
+                    "3",
+                    "hsl(44, 42%, 94%)",
+                    "4",
+                    [
+                        "case",
+                        [
+                            "==",
+                            [
+                                "get",
+                                "formOfWay"
+                            ],
+                            "2"
+                        ],
+                        "hsl(44, 42%, 94%)",
+                        "#ffffff"
+                    ],
+                    "5",
+                    "#ffffff",
+                    "6",
+                    "#ffffff",
+                    "hsl(0, 0%, 100%)"
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "exponential",
+                        1.1
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        2.5,
+                        "1",
+                        2.5,
+                        "2",
+                        2.5,
+                        "3",
+                        1.5,
+                        "4",
+                        1.5,
+                        "5",
+                        1,
+                        0
+                    ],
+                    13,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        7,
+                        "1",
+                        7,
+                        "2",
+                        5.7,
+                        "3",
+                        4.1,
+                        "4",
+                        4.1,
+                        "5",
+                        2.7,
+                        "6",
+                        1.5,
+                        0
+                    ],
+                    15,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        10.4,
+                        "1",
+                        10.4,
+                        "2",
+                        8.4,
+                        "3",
+                        6.4,
+                        "4",
+                        6.4,
+                        "5",
+                        5.4,
+                        "6",
+                        4.4,
+                        "7",
+                        1.5,
+                        2
+                    ],
+                    20,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        24,
+                        "1",
+                        24,
+                        "2",
+                        22,
+                        "3",
+                        20,
+                        "4",
+                        18,
+                        "5",
+                        17,
+                        "6",
+                        15,
+                        "7",
+                        0,
+                        4
+                    ]
+                ],
+                "line-opacity": [
+                    "match",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "0",
+                    1,
+                    "1",
+                    1,
+                    "2",
+                    1,
+                    "3",
+                    1,
+                    "4",
+                    1,
+                    "5",
+                    1,
+                    "6",
+                    1,
+                    "7",
+                    0,
+                    0
+                ]
+            }
+        },
+        {
+            "id": "NDW-road-sections-single",
+            "type": "line",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "context-roads",
+                "subGroup": "NWB-road-sections",
+                "type": "context",
+                "legendName": "Enkele lijnen, fietspad, voetbad, veerroutes",
+                "desc": "Functional road class 7, niet toegankelijk voor auto's",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "==",
+                [
+                    "get",
+                    "functionalRoadClass"
+                ],
+                "7"
+            ],
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-color": [
+                    "case",
+                    [
+                        "==",
+                        [
+                            "get",
+                            "carriagewayTypeCode"
+                        ],
+                        "FP"
+                    ],
+                    "hsl(19, 50%, 90%)",
+                    [
+                        "==",
+                        [
+                            "slice",
+                            [
+                                "get",
+                                "carriagewayTypeCode"
+                            ],
+                            0,
+                            2
+                        ],
+                        "VD"
+                    ],
+                    "hsl(192, 5%, 82%)",
+                    [
+                        "==",
+                        [
+                            "slice",
+                            [
+                                "get",
+                                "carriagewayTypeCode"
+                            ],
+                            0,
+                            2
+                        ],
+                        "VP"
+                    ],
+                    "#f3e4d3",
+                    "#ffffff"
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "exponential",
+                        1.1
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    0,
+                    13,
+                    1.5,
+                    15,
+                    3.5,
+                    20,
+                    10
+                ],
+                "line-opacity": 1
+            }
+        },
+        {
+            "id": "NDW-road-sections-casing",
+            "type": "line",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "context-roads",
+                "subGroup": "NWB-road-sections",
+                "type": "context",
+                "legendName": "Weg delen omlijning",
+                "desc": "Wegen toegankelijk voor auto's",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "!=",
+                    [
+                        "get",
+                        "carriagewayTypeCode"
+                    ],
+                    "BUS"
+                ],
+                [
+                    "!=",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "7"
+                ]
+            ],
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round",
+                "line-sort-key": [
+                    "-",
+                    8,
+                    [
+                        "to-number",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ]
+                    ]
+                ]
+            },
+            "paint": {
+                "line-color": [
+                    "match",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "0",
+                    "#DAAD3A",
+                    "1",
+                    "#DAAD3A",
+                    "2",
+                    "#DAAD3A",
+                    "3",
+                    "#E2C16C",
+                    "4",
+                    [
+                        "case",
+                        [
+                            "==",
+                            [
+                                "get",
+                                "formOfWay"
+                            ],
+                            "2"
+                        ],
+                        "#E5CA85",
+                        "hsl(192, 5%, 82%)"
+                    ],
+                    "5",
+                    "hsl(192, 5%, 82%)",
+                    "6",
+                    "hsl(192, 5%, 82%)",
+                    "hsl(0, 0%, 100%)"
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "exponential",
+                        1.1
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        3.5,
+                        "1",
+                        3.5,
+                        "2",
+                        3.5,
+                        "3",
+                        2.5,
+                        "4",
+                        2.5,
+                        "5",
+                        0,
+                        "6",
+                        0,
+                        0
+                    ],
+                    13,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        7.5,
+                        "1",
+                        6,
+                        "2",
+                        6,
+                        "3",
+                        6,
+                        "4",
+                        6,
+                        "5",
+                        4.5,
+                        "6",
+                        3.5,
+                        0
+                    ],
+                    15,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        12.5,
+                        "1",
+                        12,
+                        "2",
+                        11,
+                        "3",
+                        9,
+                        "4",
+                        9,
+                        "5",
+                        8,
+                        "6",
+                        5,
+                        0
+                    ],
+                    20,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        27,
+                        "1",
+                        27,
+                        "2",
+                        25,
+                        "3",
+                        23,
+                        "4",
+                        23,
+                        "5",
+                        22,
+                        "6",
+                        20,
+                        0
+                    ]
+                ],
+                "line-opacity": 1
+            }
+        },
+        {
+            "id": "NDW-road-sections-fill",
+            "type": "line",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "context-roads",
+                "subGroup": "NWB-road-sections",
+                "type": "context",
+                "legendName": "Weg delen vulling",
+                "desc": "Wegen toegankelijk voor auto's",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "!=",
+                    [
+                        "get",
+                        "carriagewayTypeCode"
+                    ],
+                    "BUS"
+                ],
+                [
+                    "!=",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "7"
+                ]
+            ],
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round",
+                "line-sort-key": [
+                    "-",
+                    8,
+                    [
+                        "to-number",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ]
+                    ]
+                ]
+            },
+            "paint": {
+                "line-color": [
+                    "case",
+                    [
+                        "==",
+                        [
+                            "slice",
+                            [
+                                "get",
+                                "carriagewayTypeCode"
+                            ],
+                            0,
+                            2
+                        ],
+                        "VZ"
+                    ],
+                    "#F6EADC",
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        "hsl(43, 93%, 88%)",
+                        "1",
+                        "hsl(43, 93%, 88%)",
+                        "2",
+                        "hsl(43, 93%, 88%)",
+                        "3",
+                        "hsl(44, 42%, 94%)",
+                        "4",
+                        [
+                            "case",
+                            [
+                                "==",
+                                [
+                                    "get",
+                                    "formOfWay"
+                                ],
+                                "2"
+                            ],
+                            "hsl(44, 42%, 94%)",
+                            "#ffffff"
+                        ],
+                        "5",
+                        "#ffffff",
+                        "6",
+                        "#ffffff",
+                        "hsl(0, 0%, 100%)"
+                    ]
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "exponential",
+                        1.1
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        2.5,
+                        "1",
+                        2.5,
+                        "2",
+                        2.5,
+                        "3",
+                        1.5,
+                        "4",
+                        1.5,
+                        "5",
+                        1,
+                        0
+                    ],
+                    13,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        6,
+                        "1",
+                        4,
+                        "2",
+                        4,
+                        "3",
+                        4.1,
+                        "4",
+                        4.1,
+                        "5",
+                        2.7,
+                        "6",
+                        1.5,
+                        0
+                    ],
+                    15,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        10,
+                        "1",
+                        9.5,
+                        "2",
+                        8.4,
+                        "3",
+                        6.4,
+                        "4",
+                        6.4,
+                        "5",
+                        5.4,
+                        "6",
+                        4,
+                        0
+                    ],
+                    20,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        24,
+                        "1",
+                        24,
+                        "2",
+                        22,
+                        "3",
+                        20,
+                        "4",
+                        18,
+                        "5",
+                        17,
+                        "6",
+                        15,
+                        0
+                    ]
+                ],
+                "line-opacity": 1
+            }
+        },
+        {
+            "id": "NDW-road-sections-casing-rel",
+            "type": "line",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "relevant-roads",
+                "subGroup": "NWB-road-sections",
+                "type": "relevant",
+                "legendName": "Weg delen omlijning",
+                "desc": "Wegen toegankelijk voor auto's",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "!=",
+                    [
+                        "get",
+                        "carriagewayTypeCode"
+                    ],
+                    "BUS"
+                ],
+                [
+                    "!=",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "7"
+                ]
+            ],
+            "layout": {
+                "visibility": "none",
+                "line-cap": "round",
+                "line-join": "round",
+                "line-sort-key": [
+                    "-",
+                    8,
+                    [
+                        "to-number",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ]
+                    ]
+                ]
+            },
+            "paint": {
+                "line-color": [
+                    "match",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "0",
+                    "#dd5208",
+                    "1",
+                    "#dd5208",
+                    "2",
+                    "#dd5208",
+                    "3",
+                    "#DC7019",
+                    "4",
+                    [
+                        "case",
+                        [
+                            "==",
+                            [
+                                "get",
+                                "formOfWay"
+                            ],
+                            "2"
+                        ],
+                        "#DB9E32",
+                        "#DB9E32"
+                    ],
+                    "5",
+                    "#E3C474",
+                    "6",
+                    "hsl(192, 5%, 72%)",
+                    "hsl(0, 0%, 100%)"
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "exponential",
+                        1.1
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        3.5,
+                        "1",
+                        3.5,
+                        "2",
+                        3.5,
+                        "3",
+                        2.5,
+                        "4",
+                        2.5,
+                        "5",
+                        0,
+                        "6",
+                        0,
+                        0
+                    ],
+                    13,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        7.5,
+                        "1",
+                        6,
+                        "2",
+                        6,
+                        "3",
+                        6,
+                        "4",
+                        6,
+                        "5",
+                        4.5,
+                        "6",
+                        3.5,
+                        0
+                    ],
+                    15,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        12.5,
+                        "1",
+                        12,
+                        "2",
+                        11,
+                        "3",
+                        9,
+                        "4",
+                        9,
+                        "5",
+                        8,
+                        "6",
+                        5,
+                        0
+                    ],
+                    20,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        27,
+                        "1",
+                        27,
+                        "2",
+                        25,
+                        "3",
+                        23,
+                        "4",
+                        23,
+                        "5",
+                        22,
+                        "6",
+                        20,
+                        0
+                    ]
+                ],
+                "line-opacity": 1
+            }
+        },
+        {
+            "id": "NDW-road-sections-fill-rel",
+            "type": "line",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "relevant-roads",
+                "subGroup": "NWB-road-sections",
+                "type": "relevant",
+                "legendName": "Weg delen vulling",
+                "desc": "Wegen toegankelijk voor auto's",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "!=",
+                    [
+                        "get",
+                        "carriagewayTypeCode"
+                    ],
+                    "BUS"
+                ],
+                [
+                    "!=",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "7"
+                ]
+            ],
+            "layout": {
+                "visibility": "none",
+                "line-cap": "round",
+                "line-join": "round",
+                "line-sort-key": [
+                    "-",
+                    8,
+                    [
+                        "to-number",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ]
+                    ]
+                ]
+            },
+            "paint": {
+                "line-color": [
+                    "case",
+                    [
+                        "==",
+                        [
+                            "slice",
+                            [
+                                "get",
+                                "carriagewayTypeCode"
+                            ],
+                            0,
+                            2
+                        ],
+                        "VZ"
+                    ],
+                    "#F6EADC",
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        "#DB9E32",
+                        "1",
+                        "#DB9E32",
+                        "2",
+                        "#DB9E32",
+                        "3",
+                        "#E3C474",
+                        "4",
+                        [
+                            "case",
+                            [
+                                "==",
+                                [
+                                    "get",
+                                    "formOfWay"
+                                ],
+                                "2"
+                            ],
+                            "#E3C474",
+                            "#EDDBAF"
+                        ],
+                        "5",
+                        "#EDDBAF",
+                        "6",
+                        "#ffffff",
+                        "hsl(0, 0%, 100%)"
+                    ]
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "exponential",
+                        1.1
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        2.5,
+                        "1",
+                        2.5,
+                        "2",
+                        2.5,
+                        "3",
+                        1.5,
+                        "4",
+                        1.5,
+                        "5",
+                        1,
+                        0
+                    ],
+                    13,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        6,
+                        "1",
+                        4,
+                        "2",
+                        4,
+                        "3",
+                        4.1,
+                        "4",
+                        4.1,
+                        "5",
+                        2.7,
+                        "6",
+                        1.5,
+                        0
+                    ],
+                    15,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        10,
+                        "1",
+                        9.5,
+                        "2",
+                        8.4,
+                        "3",
+                        6.4,
+                        "4",
+                        6.4,
+                        "5",
+                        5.4,
+                        "6",
+                        4,
+                        0
+                    ],
+                    20,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        24,
+                        "1",
+                        24,
+                        "2",
+                        22,
+                        "3",
+                        20,
+                        "4",
+                        18,
+                        "5",
+                        17,
+                        "6",
+                        15,
+                        0
+                    ]
+                ],
+                "line-opacity": 1
+            }
+        },
+        {
+            "id": "NDW-road-sections-bus-rel",
+            "type": "line",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "relevant-roads",
+                "subGroup": "NWB-road-sections",
+                "type": "relevant",
+                "legendName": "Bus baan",
+                "desc": "Busbanen niet toegankelijk voor auto's",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "all",
+                [
+                    "==",
+                    [
+                        "get",
+                        "carriagewayTypeCode"
+                    ],
+                    "BUS"
+                ],
+                [
+                    "!=",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "7"
+                ]
+            ],
+            "layout": {
+                "visibility": "none",
+                "line-cap": "butt",
+                "line-join": "round",
+                "line-sort-key": [
+                    "-",
+                    8,
+                    [
+                        "to-number",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ]
+                    ]
+                ]
+            },
+            "paint": {
+                "line-dasharray": [
+                    1,
+                    0.3
+                ],
+                "line-color": [
+                    "match",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "0",
+                    "#DB9E32",
+                    "1",
+                    "#DB9E32",
+                    "2",
+                    "#DB9E32",
+                    "3",
+                    "#E3C474",
+                    "4",
+                    [
+                        "case",
+                        [
+                            "==",
+                            [
+                                "get",
+                                "formOfWay"
+                            ],
+                            "2"
+                        ],
+                        "#E3C474",
+                        "#EDDBAF"
+                    ],
+                    "5",
+                    "#EDDBAF",
+                    "6",
+                    "#ffffff",
+                    "hsl(0, 0%, 100%)"
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "exponential",
+                        1.1
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        2.5,
+                        "1",
+                        2.5,
+                        "2",
+                        2.5,
+                        "3",
+                        1.5,
+                        "4",
+                        1.5,
+                        "5",
+                        1,
+                        0
+                    ],
+                    13,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        7,
+                        "1",
+                        7,
+                        "2",
+                        5.7,
+                        "3",
+                        4.1,
+                        "4",
+                        4.1,
+                        "5",
+                        2.7,
+                        "6",
+                        1.5,
+                        0
+                    ],
+                    15,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        10.4,
+                        "1",
+                        10.4,
+                        "2",
+                        8.4,
+                        "3",
+                        6.4,
+                        "4",
+                        6.4,
+                        "5",
+                        5.4,
+                        "6",
+                        4.4,
+                        "7",
+                        1.5,
+                        2
+                    ],
+                    20,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        24,
+                        "1",
+                        24,
+                        "2",
+                        22,
+                        "3",
+                        20,
+                        "4",
+                        18,
+                        "5",
+                        17,
+                        "6",
+                        15,
+                        "7",
+                        0,
+                        4
+                    ]
+                ],
+                "line-opacity": [
+                    "match",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "0",
+                    1,
+                    "1",
+                    1,
+                    "2",
+                    1,
+                    "3",
+                    1,
+                    "4",
+                    1,
+                    "5",
+                    1,
+                    "6",
+                    1,
+                    "7",
+                    0,
+                    0
+                ]
+            }
+        },
+        {
+            "id": "NDW-road-sections-single-rel",
+            "type": "line",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "relevant-roads",
+                "subGroup": "NWB-road-sections",
+                "type": "relevant",
+                "legendName": "Enkele lijnen, fietspad, voetbad, veerroutes",
+                "desc": "Functional road class 7, niet toegankelijk voor auto's",
+                "insertBefore": "background"
+            },
+            "filter": [
+                "==",
+                [
+                    "get",
+                    "functionalRoadClass"
+                ],
+                "7"
+            ],
+            "layout": {
+                "visibility": "none",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-color": [
+                    "case",
+                    [
+                        "==",
+                        [
+                            "get",
+                            "carriagewayTypeCode"
+                        ],
+                        "FP"
+                    ],
+                    "hsl(19,80%, 80%)",
+                    [
+                        "==",
+                        [
+                            "slice",
+                            [
+                                "get",
+                                "carriagewayTypeCode"
+                            ],
+                            0,
+                            2
+                        ],
+                        "VD"
+                    ],
+                    "hsl(192, 5%, 72%)",
+                    [
+                        "==",
+                        [
+                            "slice",
+                            [
+                                "get",
+                                "carriagewayTypeCode"
+                            ],
+                            0,
+                            2
+                        ],
+                        "VP"
+                    ],
+                    "#f3e4d3",
+                    "#ffffff"
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "exponential",
+                        1.1
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    0,
+                    13,
+                    0.5,
+                    15,
+                    3.5,
+                    20,
+                    10
+                ],
+                "line-opacity": 1
+            }
+        },
+        {
+            "id": "WKD-parking-areas",
+            "type": "line",
+            "source": "ndw_wkdParkingAreas",
+            "source-layer": "segments",
+            "metadata": {
+                "group": "context-roads",
+                "subGroup": "WKD-parking-areas",
+                "type": "context",
+                "legendName": "Parking areas",
+                "desc": "Parkeer vlakken naast de weg",
+                "insertBefore": "background"
+            },
+            "filter": [
+                ">",
+                "surface",
+                0
+            ],
+            "minzoom": 12.5,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "butt",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-offset": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    12,
+                    [
+                        "*",
+                        [
+                            "-",
+                            8,
+                            [
+                                "to-number",
+                                [
+                                    "get",
+                                    "functionalRoadClass"
+                                ]
+                            ]
+                        ],
+                        [
+                            "case",
+                            [
+                                "==",
+                                [
+                                    "get",
+                                    "sideOfRoad"
+                                ],
+                                "left"
+                            ],
+                            -0.6,
+                            0.6
+                        ]
+                    ],
+                    20,
+                    [
+                        "*",
+                        [
+                            "-",
+                            8,
+                            [
+                                "to-number",
+                                [
+                                    "get",
+                                    "functionalRoadClass"
+                                ]
+                            ]
+                        ],
+                        [
+                            "case",
+                            [
+                                "==",
+                                [
+                                    "get",
+                                    "sideOfRoad"
+                                ],
+                                "left"
+                            ],
+                            -5.5,
+                            5.5
+                        ]
+                    ]
+                ],
+                "line-color": "hsl(192, 5%, 82%)",
+                "line-opacity": 1,
+                "line-width": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    12,
+                    1.5,
+                    20,
+                    7.5
+                ]
+            }
+        },
+        {
+            "id": "WKD-parking-areas-rel",
+            "type": "line",
+            "source": "ndw_wkdParkingAreas",
+            "source-layer": "segments",
+            "metadata": {
+                "group": "relevant-roads",
+                "subGroup": "WKD-parking-areas",
+                "type": "relevant",
+                "legendName": "Parking areas",
+                "desc": "",
+                "insertBefore": "background"
+            },
+            "filter": [
+                ">",
+                "surface",
+                0
+            ],
+            "minzoom": 12.5,
+            "layout": {
+                "visibility": "none",
+                "line-cap": "butt",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-offset": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    12,
+                    [
+                        "*",
+                        [
+                            "-",
+                            8,
+                            [
+                                "to-number",
+                                [
+                                    "get",
+                                    "functionalRoadClass"
+                                ]
+                            ]
+                        ],
+                        [
+                            "case",
+                            [
+                                "==",
+                                [
+                                    "get",
+                                    "sideOfRoad"
+                                ],
+                                "left"
+                            ],
+                            -0.6,
+                            0.6
+                        ]
+                    ],
+                    20,
+                    [
+                        "*",
+                        [
+                            "-",
+                            8,
+                            [
+                                "to-number",
+                                [
+                                    "get",
+                                    "functionalRoadClass"
+                                ]
+                            ]
+                        ],
+                        [
+                            "case",
+                            [
+                                "==",
+                                [
+                                    "get",
+                                    "sideOfRoad"
+                                ],
+                                "left"
+                            ],
+                            -4.2,
+                            4.2
+                        ]
+                    ]
+                ],
+                "line-color": "#adbfe3",
+                "line-opacity": 1,
+                "line-width": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    12,
+                    1,
+                    20,
+                    5.5
+                ]
+            }
+        },
+        {
+            "id": "BRT-spoorbaanlijn",
+            "type": "line",
+            "source": "pdok_brt",
+            "source-layer": "spoorbaandeellijn",
+            "minzoom": 9,
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Spoor",
+                "type": "context",
+                "legendName": "Spoorlijnen",
+                "desc": "trein, metro, tram. beschikbaar van z9. Over de wegen heen.",
+                "insertBefore": "lines-overlay"
+            },
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-color": [
+                    "match",
+                    [
+                        "get",
+                        "vistext"
+                    ],
+                    "treinspoor",
+                    "#a3a7aa",
+                    "spoor in tunnel",
+                    "#a3a7aa",
+                    "metro / sneltram",
+                    "#cbcdd9",
+                    "metro / sneltram in tunnel",
+                    "#cbcdd9",
+                    "tram",
+                    "#a3a7aa",
+                    "overig",
+                    "#a3a7aa",
+                    "spoor onder ander object",
+                    "#a3a7aa",
+                    "red"
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    12,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "vistext"
+                        ],
+                        "treinspoor",
+                        0.8,
+                        "spoor in tunnel",
+                        0.5,
+                        "metro / sneltram",
+                        0.1,
+                        "metro / sneltram in tunnel",
+                        0.1,
+                        "tram",
+                        0.1,
+                        "overig",
+                        0.1,
+                        "spoor onder ander object",
+                        1,
+                        10
+                    ],
+                    16,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "vistext"
+                        ],
+                        "treinspoor",
+                        1.5,
+                        "spoor in tunnel",
+                        1.5,
+                        "metro / sneltram",
+                        3,
+                        "metro / sneltram in tunnel",
+                        3,
+                        "tram",
+                        1,
+                        "overig",
+                        0.5,
+                        "spoor onder ander object",
+                        1.5,
+                        10
+                    ]
+                ],
+                "line-opacity": [
+                    "match",
+                    [
+                        "get",
+                        "vistext"
+                    ],
+                    "spoor onder ander object",
+                    0.5,
+                    "spoor in tunnel",
+                    0.5,
+                    "metro / sneltram in tunnel",
+                    0.5,
+                    1
+                ]
+            }
+        },
+        {
+            "id": "BRT-spoorbaanlijn-dash",
+            "type": "line",
+            "source": "pdok_brt",
+            "source-layer": "spoorbaandeellijn",
+            "minzoom": 14,
+            "metadata": {
+                "group": "context-map",
+                "subGroup": "Spoor",
+                "type": "context",
+                "legendName": "Spoorlijnen dash voor trein",
+                "desc": "trein. beschikbaar van z14. Over de wegen heen.",
+                "insertBefore": "lines-overlay"
+            },
+            "filter": [
+                "any",
+                [
+                    "==",
+                    [
+                        "get",
+                        "vistext"
+                    ],
+                    "treinspoor"
+                ],
+                [
+                    "==",
+                    [
+                        "get",
+                        "vistext"
+                    ],
+                    "overig"
+                ],
+                [
+                    "==",
+                    [
+                        "get",
+                        "vistext"
+                    ],
+                    "spoor in tunnel"
+                ]
+            ],
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "butt",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-dasharray": [
+                    0.1,
+                    5
+                ],
+                "line-color": [
+                    "match",
+                    [
+                        "get",
+                        "vistext"
+                    ],
+                    "treinspoor",
+                    "#a3a7aa",
+                    "spoor in tunnel",
+                    "#a3a7aa",
+                    "overig",
+                    "#a3a7aa",
+                    "spoor onder ander object",
+                    "#a3a7aa",
+                    "red"
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    14,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "vistext"
+                        ],
+                        "treinspoor",
+                        3,
+                        "spoor in tunnel",
+                        3.5,
+                        "overig",
+                        3.1,
+                        "spoor onder ander object",
+                        3,
+                        10
+                    ],
+                    16,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "vistext"
+                        ],
+                        "treinspoor",
+                        7,
+                        "spoor in tunnel",
+                        6.5,
+                        "overig",
+                        5.5,
+                        "spoor onder ander object",
+                        6.5,
+                        10
+                    ]
+                ],
+                "line-opacity": [
+                    "match",
+                    [
+                        "get",
+                        "vistext"
+                    ],
+                    "spoor onder ander object",
+                    0.5,
+                    "spoor in tunnel",
+                    0.5,
+                    1
+                ]
+            }
+        },
+        {
+            "id": "PDOK-prov-grenzen",
+            "type": "line",
+            "metadata": {
+                "group": "context-admin",
+                "subGroup": "Bestuurlijke grenzen",
+                "type": "context",
+                "legendName": "Provincie grenzen",
+                "desc": "",
+                "insertBefore": "lines-overlay"
+            },
+            "source": "pdok_bestuurlijkegebieden",
+            "source-layer": "provinciegebied",
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-color": "#cbcdd9",
+                "line-width": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    7,
+                    2,
+                    10,
+                    4,
+                    16,
+                    8
+                ]
+            }
+        },
+        {
+            "id": "PDOK-gem-grenzen",
+            "type": "line",
+            "metadata": {
+                "group": "context-admin",
+                "subGroup": "Bestuurlijke grenzen",
+                "type": "context",
+                "legendName": "Gemeente grenzen",
+                "desc": "",
+                "insertBefore": "lines-overlay"
+            },
+            "source": "pdok_bestuurlijkegebieden",
+            "source-layer": "gemeentegebied",
+            "minzoom": 10,
+            "layout": {
+                "visibility": "visible",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-color": "#cbcdd9",
+                "line-width": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    1,
+                    12,
+                    2,
+                    16,
+                    5
+                ]
+            }
+        },
+        {
+            "id": "PDOK-prov-grenzen-rel",
+            "type": "line",
+            "metadata": {
+                "group": "relevant-admin",
+                "subGroup": "Bestuurlijke grenzen",
+                "type": "relevant",
+                "legendName": "Provincie grenzen",
+                "desc": "",
+                "insertBefore": "lines-overlay"
+            },
+            "source": "pdok_bestuurlijkegebieden",
+            "source-layer": "provinciegebied",
+            "layout": {
+                "visibility": "none",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-color": "#182a36",
+                "line-blur": 2,
+                "line-opacity": 0.5,
+                "line-width": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    7,
+                    2,
+                    10,
+                    4,
+                    16,
+                    8
+                ]
+            }
+        },
+        {
+            "id": "PDOK-gem-grenzen-rel",
+            "type": "line",
+            "metadata": {
+                "group": "relevant-admin",
+                "subGroup": "Bestuurlijke grenzen",
+                "type": "relevant",
+                "legendName": "Gemeente grenzen",
+                "desc": "",
+                "insertBefore": "lines-overlay"
+            },
+            "source": "pdok_bestuurlijkegebieden",
+            "source-layer": "gemeentegebied",
+            "minzoom": 10,
+            "layout": {
+                "visibility": "none",
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-color": "#182a36",
+                "line-blur": 1,
+                "line-opacity": 0.7,
+                "line-dasharray": [
+                    2,
+                    2
+                ],
+                "line-width": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    1,
+                    12,
+                    2,
+                    16,
+                    5
+                ]
+            }
+        },
+        {
+            "id": "NWB-oneway-signs",
+            "type": "symbol",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "context-roads",
+                "subGroup": "NWB-oneway-signs",
+                "type": "context",
+                "legendName": "Eenrichtingsverkeer",
+                "desc": "",
+                "insertBefore": "label"
+            },
+            "minzoom": 14,
+            "filter": [
+                "in",
+                [
+                    "get",
+                    "drivingDirection"
+                ],
+                [
+                    "literal",
+                    [
+                        "H",
+                        "T"
+                    ]
+                ]
+            ],
+            "layout": {
+                "visibility": "visible",
+                "icon-image": "sdf:arrow-simple-2",
+                "icon-padding": 1,
+                "icon-rotate": [
+                    "match",
+                    [
+                        "get",
+                        "drivingDirection"
+                    ],
+                    "H",
+                    90,
+                    "T",
+                    -90,
+                    0
+                ],
+                "icon-rotation-alignment": "map",
+                "icon-size": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    13,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        0.3,
+                        "1",
+                        0.3,
+                        "2",
+                        0.2,
+                        "3",
+                        0.2,
+                        "4",
+                        0.2,
+                        "5",
+                        0,
+                        "6",
+                        0,
+                        "7",
+                        0,
+                        0
+                    ],
+                    16,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        0.7,
+                        "1",
+                        0.7,
+                        "2",
+                        0.6,
+                        "3",
+                        0.5,
+                        "4",
+                        0.5,
+                        "5",
+                        0.5,
+                        "6",
+                        0.5,
+                        "7",
+                        0.3,
+                        1
+                    ]
+                ],
+                "symbol-placement": "line",
+                "symbol-spacing": 120
+            },
+            "paint": {
+                "icon-opacity": 1,
+                "icon-color": [
+                    "match",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "0",
+                    "hsl(204, 5%, 60%)",
+                    "1",
+                    "hsl(204, 5%, 60%)",
+                    "2",
+                    "hsl(204, 5%, 70%)",
+                    "3",
+                    "hsl(204, 5%, 70%)",
+                    "4",
+                    "hsl(192, 5%, 80%)",
+                    "5",
+                    "hsl(192, 5%, 70%)",
+                    "6",
+                    "hsl(192, 5%, 70%)",
+                    "7",
+                    "hsl(192, 5%, 70%)",
+                    "hsl(0, 0%, 100%)"
+                ]
+            }
+        },
+        {
+            "id": "NWB-oneway-signs-rel",
+            "type": "symbol",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "relevant-roads",
+                "subGroup": "NWB-oneway-signs",
+                "type": "relevant",
+                "legendName": "Eenrichtingsverkeer",
+                "desc": "",
+                "insertBefore": "label"
+            },
+            "minzoom": 14,
+            "filter": [
+                "in",
+                [
+                    "get",
+                    "drivingDirection"
+                ],
+                [
+                    "literal",
+                    [
+                        "H",
+                        "T"
+                    ]
+                ]
+            ],
+            "layout": {
+                "visibility": "none",
+                "icon-image": "sdf:arrow-simple-2",
+                "icon-padding": 2,
+                "icon-rotate": [
+                    "match",
+                    [
+                        "get",
+                        "drivingDirection"
+                    ],
+                    "H",
+                    90,
+                    "T",
+                    -90,
+                    0
+                ],
+                "icon-rotation-alignment": "map",
+                "icon-size": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    13,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        0.3,
+                        "1",
+                        0.3,
+                        "2",
+                        0.2,
+                        "3",
+                        0.2,
+                        "4",
+                        0.2,
+                        "5",
+                        0,
+                        "6",
+                        0,
+                        "7",
+                        0,
+                        0
+                    ],
+                    16,
+                    [
+                        "match",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0",
+                        0.7,
+                        "1",
+                        0.7,
+                        "2",
+                        0.6,
+                        "3",
+                        0.5,
+                        "4",
+                        0.5,
+                        "5",
+                        0.5,
+                        "6",
+                        0.5,
+                        "7",
+                        0.3,
+                        1
+                    ]
+                ],
+                "symbol-placement": "line",
+                "symbol-spacing": 120
+            },
+            "paint": {
+                "icon-opacity": 1,
+                "icon-color": [
+                    "match",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "0",
+                    "#b64a11",
+                    "1",
+                    "#b64a11",
+                    "2",
+                    "#b64a11",
+                    "3",
+                    "#dd5208",
+                    "4",
+                    "#dc7019",
+                    "5",
+                    "#dc7019",
+                    "6",
+                    "hsl(192, 5%, 50%)",
+                    "7",
+                    "hsl(192, 5%, 50%)",
+                    "hsl(0, 0%, 100%)"
+                ]
+            }
+        },
+        {
+            "id": "BGT-huisnummers",
+            "type": "symbol",
+            "source": "pdok_bgt",
+            "source-layer": "pand_nummeraanduiding",
+            "metadata": {
+                "group": "context-labels",
+                "subGroup": "BGT-huisnummers",
+                "type": "context",
+                "legendName": "Pand huisnummers",
+                "desc": "Uit de BGT, alleen zichtbaar vanaf zoom 17",
+                "insertBefore": "label"
+            },
+            "layout": {
+                "visibility": "visible",
+                "symbol-placement": "point",
+                "text-anchor": "bottom",
+                "text-line-height": 1.2,
+                "text-field": "{tekst}",
+                "text-font": [
+                    "Roboto Light"
+                ],
+                "text-size": 10,
+                "text-justify": "center",
+                "text-rotate": [
+                    "-",
+                    360,
+                    [
+                        "get",
+                        "hoek"
+                    ]
+                ]
+            },
+            "paint": {
+                "text-opacity": 1,
+                "text-halo-width": 2,
+                "text-halo-color": "#fff",
+                "text-color": "#555555"
+            }
+        },
+        {
+            "id": "NDW-RoadNames",
+            "type": "symbol",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "context-labels",
+                "subGroup": "NWB-Road-names",
+                "type": "context",
+                "legendName": "Weg namen",
+                "desc": "Weg namen uit NWB, hierarchy op functionalroadclass",
+                "insertBefore": "label"
+            },
+            "minzoom": 12,
+            "filter": [
+                "all",
+                [
+                    "!=",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "7"
+                ],
+                [
+                    "!=",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "0"
+                ],
+                [
+                    "!=",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "1"
+                ],
+                [
+                    "!=",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "2"
+                ]
+            ],
+            "layout": {
+                "symbol-sort-key": [
+                    "-",
+                    8,
+                    [
+                        "to-number",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ]
+                    ]
+                ],
+                "symbol-placement": "line",
+                "text-field": "{roadName}",
+                "text-max-angle": 50,
+                "text-padding": 30,
+                "text-font": [
+                    "case",
+                    [
+                        "==",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "3"
+                    ],
+                    [
+                        "literal",
+                        [
+                            "Noto Sans Bold"
+                        ]
+                    ],
+                    [
+                        "literal",
+                        [
+                            "Noto Sans Regular"
+                        ]
+                    ]
+                ],
+                "text-size": [
+                    "match",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "2",
+                    14,
+                    "3",
+                    14,
+                    "4",
+                    12,
+                    "5",
+                    11,
+                    "6",
+                    11,
+                    0
+                ],
+                "text-rotation-alignment": "map"
+            },
+            "paint": {
+                "text-color": "hsl(196, 13%, 29%)",
+                "text-halo-color": "#f8f4f0",
+                "text-halo-width": 1.5
+            }
+        },
+        {
+            "id": "BRT-wijknamen",
+            "type": "symbol",
+            "source": "pdok_brt",
+            "source-layer": "annotaties",
+            "metadata": {
+                "group": "context-labels",
+                "subGroup": "BRT-plaatsnamen",
+                "type": "context",
+                "legendName": "Wijk namen",
+                "desc": "Wijknamen, lichtgrijs",
+                "insertBefore": "label"
+            },
+            "minzoom": 13.5,
+            "maxzoom": 16,
+            "filter": [
+                "==",
+                [
+                    "get",
+                    "vistext"
+                ],
+                "wijknamen"
+            ],
+            "layout": {
+                "symbol-placement": "point",
+                "text-field": "{label}",
+                "text-letter-spacing": 0.2,
+                "text-font": [
+                    "Roboto Serif Regular"
+                ],
+                "text-size": [
+                    "*",
+                    [
+                        "coalesce",
+                        [
+                            "get",
+                            "size"
+                        ],
+                        10
+                    ],
+                    1.3
+                ],
+                "text-rotation-alignment": "map"
+            },
+            "paint": {
+                "text-color": "hsl(197, 7%, 50%)",
+                "text-halo-color": "#f8f4f0",
+                "text-halo-width": 1
+            }
+        },
+        {
+            "id": "BRT-placenames",
+            "type": "symbol",
+            "source": "pdok_brt",
+            "source-layer": "annotaties",
+            "metadata": {
+                "group": "context-labels",
+                "subGroup": "BRT-plaatsnamen",
+                "type": "context",
+                "legendName": "Plaatsnamen",
+                "desc": "Plaatsnamen van Nederland, donkergrijs",
+                "insertBefore": "label"
+            },
+            "maxzoom": 16,
+            "filter": [
+                "==",
+                [
+                    "get",
+                    "vistext"
+                ],
+                "plaatsnamen"
+            ],
+            "layout": {
+                "symbol-placement": "point",
+                "text-field": "{label}",
+                "text-font": [
+                    "case",
+                    [
+                        ">",
+                        [
+                            "get",
+                            "size"
+                        ],
+                        9
+                    ],
+                    [
+                        "literal",
+                        [
+                            "DM Sans Medium"
+                        ]
+                    ],
+                    [
+                        "literal",
+                        [
+                            "DM Sans Regular"
+                        ]
+                    ]
+                ],
+                "text-size": [
+                    "*",
+                    [
+                        "coalesce",
+                        [
+                            "get",
+                            "size"
+                        ],
+                        10
+                    ],
+                    1.4
+                ],
+                "text-rotation-alignment": "map"
+            },
+            "paint": {
+                "text-color": "#3c3c3c",
+                "text-halo-color": "#f8f4f0",
+                "text-halo-width": 2.5
+            }
+        },
+        {
+            "id": "NWB-hectometreSigns-circle",
+            "type": "circle",
+            "source": "ndw_hectometreSigns",
+            "source-layer": "hectometreSigns",
+            "metadata": {
+                "group": "context-roads",
+                "subGroup": "NWB-hectometersigns",
+                "type": "context",
+                "legendName": "hectometreSigns",
+                "desc": "Grijze cirkel die positie aangeeft hectometer nummer",
+                "insertBefore": "label"
+            },
+            "minzoom": 9.5,
+            "filter": [
+                "all",
+                [
+                    "==",
+                    [
+                        "%",
+                        [
+                            "get",
+                            "hectometre"
+                        ],
+                        [
+                            "case",
+                            [
+                                "<=",
+                                [
+                                    "zoom"
+                                ],
+                                10
+                            ],
+                            100,
+                            [
+                                "<=",
+                                [
+                                    "zoom"
+                                ],
+                                12
+                            ],
+                            50,
+                            [
+                                "<=",
+                                [
+                                    "zoom"
+                                ],
+                                13
+                            ],
+                            20,
+                            [
+                                "<=",
+                                [
+                                    "zoom"
+                                ],
+                                14
+                            ],
+                            10,
+                            1
+                        ]
+                    ],
+                    0
+                ]
+            ],
+            "layout": {
+                "visibility": "visible"
+            },
+            "paint": {
+                "circle-color": "hsl(204, 5%, 60%)",
+                "circle-radius": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    0.5,
+                    13,
+                    2,
+                    16,
+                    3,
+                    20,
+                    6
+                ],
+                "circle-stroke-color": "hsl(204, 5%, 60%)",
+                "circle-stroke-width": 1
+            }
+        },
+        {
+            "id": "NWB-hectometreSigns-text",
+            "type": "symbol",
+            "source": "ndw_hectometreSigns",
+            "source-layer": "hectometreSigns",
+            "metadata": {
+                "group": "context-roads",
+                "subGroup": "NWB-hectometersigns",
+                "type": "context",
+                "legendName": "Hecotmeter borden tekst",
+                "desc": "Grijze tekst naast de cirkel",
+                "insertBefore": "label"
+            },
+            "minzoom": 10,
+            "filter": [
+                "all",
+                [
+                    "==",
+                    [
+                        "%",
+                        [
+                            "get",
+                            "hectometre"
+                        ],
+                        [
+                            "case",
+                            [
+                                "<=",
+                                [
+                                    "zoom"
+                                ],
+                                10
+                            ],
+                            100,
+                            [
+                                "<=",
+                                [
+                                    "zoom"
+                                ],
+                                12
+                            ],
+                            50,
+                            [
+                                "<=",
+                                [
+                                    "zoom"
+                                ],
+                                13
+                            ],
+                            20,
+                            [
+                                "<=",
+                                [
+                                    "zoom"
+                                ],
+                                14
+                            ],
+                            10,
+                            1
+                        ]
+                    ],
+                    0
+                ]
+            ],
+            "layout": {
+                "visibility": "visible",
+                "text-rotation-alignment": "viewport",
+                "symbol-placement": "point",
+                "text-field": [
+                    "format",
+                    [
+                        "number-format",
+                        [
+                            "/",
+                            [
+                                "get",
+                                "hectometre"
+                            ],
+                            10
+                        ],
+                        {
+                            "min-fraction-digits": 1,
+                            "max-fraction-digits": 1
+                        }
+                    ],
+                    " ",
+                    [
+                        "get",
+                        "letter"
+                    ],
+                    {
+                        "font-scale": 0.85
+                    }
+                ],
+                "text-font": [
+                    "DM Sans Bold"
+                ],
+                "text-size": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    10,
+                    6,
+                    13,
+                    10,
+                    16,
+                    11,
+                    20,
+                    12
+                ],
+                "text-anchor": "left",
+                "text-offset": [
+                    1,
+                    0
+                ]
+            },
+            "paint": {
+                "text-color": "hsl(204, 5%, 40%)",
+                "text-halo-color": "hsl(204, 5%, 100%)",
+                "text-halo-width": 1
+            }
+        },
+        {
+            "id": "NDW-RoadNames-Number",
+            "type": "symbol",
+            "source": "ndw_roadSections",
+            "source-layer": "roadSections",
+            "metadata": {
+                "group": "context-roads",
+                "subGroup": "NWB-Road-names",
+                "type": "context",
+                "legendName": "Weg nummers",
+                "desc": "A en N wegen nummbers, grijs omvlakt",
+                "insertBefore": "label"
+            },
+            "minzoom": 6,
+            "filter": [
+                "all",
+                [
+                    "has",
+                    "hectometreSignRoadNumber"
+                ],
+                [
+                    "any",
+                    [
+                        "==",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "0"
+                    ],
+                    [
+                        "==",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "1"
+                    ],
+                    [
+                        "==",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "2"
+                    ],
+                    [
+                        "==",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ],
+                        "3"
+                    ]
+                ]
+            ],
+            "layout": {
+                "symbol-sort-key": [
+                    "-",
+                    8,
+                    [
+                        "to-number",
+                        [
+                            "get",
+                            "functionalRoadClass"
+                        ]
+                    ]
+                ],
+                "symbol-placement": "line",
+                "symbol-spacing": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    8,
+                    400,
+                    10,
+                    250,
+                    20,
+                    500
+                ],
+                "text-field": "{hectometreSignRoadNumber}",
+                "text-max-angle": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    6,
+                    20,
+                    8,
+                    5,
+                    20,
+                    0
+                ],
+                "text-padding": 8,
+                "text-font": [
+                    "Noto Sans Bold"
+                ],
+                "text-size": [
+                    "match",
+                    [
+                        "get",
+                        "functionalRoadClass"
+                    ],
+                    "0",
+                    12,
+                    "1",
+                    11,
+                    "2",
+                    11,
+                    "3",
+                    10,
+                    0
+                ],
+                "text-rotation-alignment": "viewport"
+            },
+            "paint": {
+                "text-color": "#f8f4f0",
+                "text-halo-color": "hsl(196, 13%, 50%)",
+                "text-halo-width": 30
+            }
+        },
+        {
+            "id": "NWB-hectometreSigns-rel",
+            "type": "symbol",
+            "source": "ndw_hectometreSigns",
+            "source-layer": "hectometreSigns",
+            "metadata": {
+                "group": "relevant-roads",
+                "subGroup": "NWB-hectometersigns",
+                "type": "relevant",
+                "legendName": "Hectometer borden",
+                "desc": "Rood/Groene hectomer borden voor A wegen en Geel/Groene borden voor N wegen met nummering.",
+                "insertBefore": "label"
+            },
+            "filter": [
+                "==",
+                [
+                    "%",
+                    [
+                        "get",
+                        "hectometre"
+                    ],
+                    [
+                        "case",
+                        [
+                            "<=",
+                            [
+                                "zoom"
+                            ],
+                            10
+                        ],
+                        100,
+                        [
+                            "<=",
+                            [
+                                "zoom"
+                            ],
+                            12
+                        ],
+                        50,
+                        [
+                            "<=",
+                            [
+                                "zoom"
+                            ],
+                            13
+                        ],
+                        20,
+                        [
+                            "<=",
+                            [
+                                "zoom"
+                            ],
+                            14
+                        ],
+                        10,
+                        1
+                    ]
+                ],
+                0
+            ],
+            "layout": {
+                "visibility": "none",
+                "icon-padding": 20,
+                "text-rotation-alignment": "viewport",
+                "symbol-placement": "point",
+                "icon-image": [
+                    "case",
+                    [
+                        "!",
+                        [
+                            "has",
+                            "roadName"
+                        ]
+                    ],
+                    "NDW:road_hectometre",
+                    [
+                        "in",
+                        "A",
+                        [
+                            "get",
+                            "roadName"
+                        ]
+                    ],
+                    "NDW:road_hectometre-a-weg",
+                    "NDW:road_hectometre-n-weg"
+                ],
+                "icon-size": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    7,
+                    [
+                        "case",
+                        [
+                            "in",
+                            "A",
+                            [
+                                "get",
+                                "roadName"
+                            ]
+                        ],
+                        0.6,
+                        0
+                    ],
+                    9,
+                    [
+                        "case",
+                        [
+                            "in",
+                            "A",
+                            [
+                                "get",
+                                "roadName"
+                            ]
+                        ],
+                        0.8,
+                        0
+                    ],
+                    10,
+                    0.8,
+                    13,
+                    1,
+                    16,
+                    1,
+                    20,
+                    1.5
+                ],
+                "icon-ignore-placement": false,
+                "icon-allow-overlap": false,
+                "text-field": [
+                    "case",
+                    [
+                        "!",
+                        [
+                            "has",
+                            "roadName"
+                        ]
+                    ],
+                    [
+                        "format",
+                        [
+                            "number-format",
+                            [
+                                "/",
+                                [
+                                    "get",
+                                    "hectometre"
+                                ],
+                                10
+                            ],
+                            {
+                                "min-fraction-digits": 1,
+                                "max-fraction-digits": 1
+                            }
+                        ],
+                        " ",
+                        [
+                            "get",
+                            "letter"
+                        ],
+                        {
+                            "font-scale": 0.80
+                        }
+                    ],
+                    [
+                        "format",
+                        [
+                            "get",
+                            "roadName"
+                        ],
+                        {
+                            "font-scale": 0.9
+                        },
+                        " ",
+                        [
+                            "get",
+                            "letter"
+                        ],
+                        {
+                            "font-scale": 0.80
+                        },
+                        "\n",
+                        [
+                            "number-format",
+                            [
+                                "/",
+                                [
+                                    "get",
+                                    "hectometre"
+                                ],
+                                10
+                            ],
+                            {
+                                "min-fraction-digits": 1,
+                                "max-fraction-digits": 1
+                            }
+                        ],
+                        {
+                            "text-color": "#fff"
+                        }
+                    ]
+                ],
+                "text-font": [
+                    "DM Sans Bold"
+                ],
+                "text-rotation-alignment": "viewport",
+                "text-offset": [
+                    0,
+                    0
+                ],
+                "icon-offset": [
+                    0,
+                    0
+                ],
+                "text-size": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    8,
+                    [
+                        "case",
+                        [
+                            "in",
+                            "A",
+                            [
+                                "get",
+                                "roadName"
+                            ]
+                        ],
+                        6,
+                        0
+                    ],
+                    9,
+                    [
+                        "case",
+                        [
+                            "in",
+                            "A",
+                            [
+                                "get",
+                                "roadName"
+                            ]
+                        ],
+                        8,
+                        0
+                    ],
+                    10,
+                    8,
+                    13,
+                    10,
+                    16,
+                    11,
+                    20,
+                    14
+                ]
+            },
+            "paint": {
+                "text-color": [
+                    "case",
+                    [
+                        "!",
+                        [
+                            "has",
+                            "roadName"
+                        ]
+                    ],
+                    "#fff",
+                    [
+                        "in",
+                        "A",
+                        [
+                            "get",
+                            "roadName"
+                        ]
+                    ],
+                    "#fff",
+                    "#000"
+                ]
+            }
+        }
+    ]
+}

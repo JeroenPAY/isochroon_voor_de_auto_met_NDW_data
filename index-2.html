@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>Fietsnetwerk</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+  <!-- Externe dependencies -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+  
+  <!-- Eigen CSS/JS -->
+  <link rel="stylesheet" href="assets/css/style.css">
+
+  <!-- Data -->
+  <script src="assets/gemeentes.js"></script>
+<!-- aanpassen
+  <script src="data/js/arrows.js" defer></script> 
+-->
+
+  <!-- Utils & Modules -->
+  <script src="assets/js/gemeente-manager.js" defer></script>
+
+  <script src="assets/js/popup.js" defer></script>
+  <script src="assets/js/legend.js" defer></script>
+  <script src="assets/js/input_nodes.js" defer></script>
+  <!-- Berekeningsmodules -->
+   
+  <script src="assets/js/isochroon-calculator.js" defer></script>
+  <script src="assets/js/calculations-sidebar.js" defer></script>
+
+  <!-- Hoofdscript LAATST laden -->
+
+  <script src="assets/js/script2.js" defer></script>
+
+  
+  <style>
+    /* FEATURE COUNT STYLING */
+    .feature-count {
+      margin-left: auto;
+      font-size: 0.8em;
+      color: #666;
+      padding-left: 8px;
+      min-width: 40px;
+      text-align: right;
+    }
+    
+    .feature-count.loading {
+      color: #999;
+      font-style: italic;
+    }
+    
+    .feature-count.zero {
+      color: #ccc;
+    }
+    
+    /* Aanpassingen voor legend items */
+    .legend-item {
+      display: flex;
+      align-items: center;
+      padding: 4px 8px;
+    }
+    
+    .legend-text {
+      flex: 1;
+      margin: 0 8px;
+    }
+  </style>
+ 
+</head>
+<body>
+  <!-- Gemeente selectie -->
+  <div class="controls">
+    <label for="gemeenteInput">Isochronen voor de auto met het NDW,</label>
+    <label for="gemeenteInput">Gemeente:</label>
+    <input type="text" id="gemeenteInput" list="gemeenteOptions" placeholder="Typ gemeentenaam of code..." autocomplete="off"> 
+  
+    
+  </div>
+
+  
+  <datalist id="gemeenteOptions"></datalist>
+  
+  <div id="map"></div>
+  <canvas id="arrowCanvas" width="60" height="60" style="display: none;"></canvas>
+
+  <!-- Legenda -->
+  <div id="legend" class="legend">
+    <div class="legend-title">
+      Legenda
+      <span class="toggle-icon">expand_more</span>
+    </div>
+    <div class="legend-content">
+
+         <div class="legend-section">
+        <div class="legend-section-title">Wegen</div>
+        <div class="legend-item">
+          <div class="legend-symbol"><div class="legend-line" style="background-color: rgba(11,11,11,0.8); border: 1px solid #ccc;"></div></div>
+          <div class="legend-text">NWB wegen</div>
+        </div>
+   
+      </div>
+      <!-- ACHTERGRONDKAARTEN RADIO BUTTONS -->
+      <div class="legend-section basemap-section">
+        <div class="legend-section-title">Achtergrondkaart</div>
+        
+        <div class="basemap-radio-group">
+          <label class="basemap-radio-item">
+            <input type="radio" name="basemap" value="pdok-grijs" checked class="basemap-radio">
+            <div class="basemap-radio-custom"></div>
+            <div class="basemap-icon">
+              <span class="material-symbols-outlined">layers</span>
+            </div>
+            <span class="basemap-label">PDOK Grijs</span>
+          </label>
+          
+          <label class="basemap-radio-item">
+            <input type="radio" name="basemap" value="esri-satellite" class="basemap-radio">
+            <div class="basemap-radio-custom"></div>
+            <div class="basemap-icon">
+              <span class="material-symbols-outlined">satellite_alt</span>
+            </div>
+            <span class="basemap-label">PDOK Luchtfoto</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Berekenings Sidebar -->
+  <div id="calculationsSidebar" class="calculations-sidebar">
+    <div class="calculations-sidebar-title">
+      <span class="calculations-title-text">Berekeningen</span>
+      <span class="calculations-toggle-icon">expand_more</span>
+    </div>
+    
+    <div class="calculations-sidebar-content">
+      <!-- Tab navigatie -->
+      <div class="calculations-tabs">
+        <button class="calculation-tab" data-tab="isochroon" style="cursor: default;">Isochroon</button>
+        <!--        <button class="calculation-tab" data-tab="isochroon2">Kortste Pad</button>
+                    <button class="calculation-tab" data-tab="isochroon3">Sugesties</button>      -->
+      </div>
+      
+      
+      <!-- Isochroon tab inhoud -->
+      <div class="calculation-tab-content" id="isochroonTab">
+        <div class="calculation-section">
+          <h4 class="calculation-section-title">Isochroon Bereik</h4>
+          
+          <div class="isochroon-controls">
+            <div class="isochroon-input-group">
+              <label for="isochroonStartNode">Startpunt:</label>
+              <input type="number" id="isochroonStartNode" placeholder="bijv. 351175027"style="display: none;">
+            </div>
+                        
+            <div class="isochroon-input-group">
+              <label for="limitValue">Tijd in minuten:</label>
+              <input type="number" id="limitValue" value="500" min="1" class="isochroon-number" >
+            </div>
+
+            <div class="isochroon-input-group">
+              <label for="periode">Periode:</label>
+              <select id="periode" class="isochroon-select">
+                <option value="ochtend">Ochtend (7h-9h)</option>
+                <option value="middag">middag (9h-16h)</option>
+                <option value="avond">avondspits (16h-18h)</option>
+                <option value="nacht">nacht (18h-7h)</option>
+
+
+              </select>
+            </div>
+
+            <div class="isochroon-input-group">
+              <label for="year">Jaar:</label>
+              <select id="year" class="isochroon-select">
+                <option value="2026">2026</option>
+                <option value="2025">2025</option>
+              </select>
+            </div>
+
+
+          </div>
+          
+          <div class="isochroon-buttons">
+            <button class="calculation-button primary" id="calculateIsochroon">Bereken isochroon</button>
+            <button class="calculation-button secondary" id="clearIsochroon">Wis isochroon</button>
+          </div>
+          
+          <div class="isochroon-visibility">
+            <div class="isochroon-visibility-toggle" id="toggleIsochroonVisibility">
+              <span class="isochroon-visibility-icon">visibility</span>
+              <span class="isochroon-visibility-text">Isochroon weergeven</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notificatie Container -->
+  <div id="notification-container" class="notification-container" style="display: none;"></div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay" style="display: none;">
+    <div class="loading-spinner">
+      <span class="material-symbols-outlined">map</span>
+      <div class="loading-text">Kaart laden...</div>
+    </div>
+  </div>
+
+</body>
+</html>
