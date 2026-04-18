@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
   <meta charset="utf-8" />
-  <title>NDW RVM – Gemeente viewer</title>
+  <title>NDW RVM – Gemeente viewer met omstreken (wegen)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
@@ -10,8 +10,10 @@
   <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,1" />
-  
 
+  <!-- Externe bestanden met gemeente en omstreken data -->
+  <script src="gemeentes.js"></script>
+  <script src="omstreken.js"></script>
 
   <style>
     * { box-sizing: border-box; }
@@ -50,7 +52,6 @@
 </head>
 <body>
 
-
 <div id="map"></div>
 
 <div class="search-panel">
@@ -60,13 +61,13 @@
   <div class="input-group">
     <input type="text" id="gemeenteInput" list="gemeenteSuggesties" placeholder="Bijv: Helmond, Eindhoven..." autocomplete="off">
     <datalist id="gemeenteSuggesties">
-      <option>Helmond</option><option>Eindhoven</option><option>Amsterdam</option><option>Rotterdam</option><option>Utrecht</option>
-      <option>Den Haag</option><option>Groningen</option><option>Tilburg</option><option>Breda</option><option>Nijmegen</option>
+      <!-- Wordt dynamisch gevuld -->
     </datalist>
   </div>
   <div class="btn-row">
     <button id="zoekGemeenteBtn" class="primary"><span class="material-symbols-outlined">search</span> Zoek</button>
     <button id="toggleGrenzenBtn" class="toggle-btn active"><span class="material-symbols-outlined">layers</span> Verberg grenzen</button>
+    <button id="toggleOmstrekenBtn" class="toggle-btn"><span class="material-symbols-outlined">near_me</span> Omstreken uit</button>
     <button id="resetViewBtn" class="secondary"><span class="material-symbols-outlined">public</span> Heel NL</button>
   </div>
 </div>
@@ -78,6 +79,7 @@
 </div>
 
 <script>
+  // ==================== MAP INIT ====================
   const map = new maplibregl.Map({
     container: "map",
     style: {
@@ -118,9 +120,14 @@
 
   map.addControl(new maplibregl.NavigationControl(), "top-right");
 
+  // Globale variabelen
   let gemeenteData = null;
   let grenzenZichtbaar = true;
+  let omstrekenActief = false;
+  let huidigeGemeenteNaam = "";
+  let huidigeGemeenteCode = null;
 
+  // Helper: statusmelding
   function setStatus(text, isError = false) {
     const el = document.getElementById("statusMsg");
     el.style.backgroundColor = isError ? "#b91c1c" : "#0f172a";
@@ -129,14 +136,108 @@
     setTimeout(() => { el.style.opacity = "0"; }, 3000);
   }
 
-  // Toggle functie voor gemeentegrenzen
+  // Helper: vind gemeentenaam op basis van code (uit de externe gemeenten array)
+  function getGemeenteNaamByCode(code) {
+    const gemeente = gemeenten.find(g => g.code === code);
+    return gemeente ? gemeente.naam : null;
+  }
+
+  // Helper: vind gemeentecode op basis van naam (uit de externe gemeenten array)
+  function getGemeenteCodeByNaam(naam) {
+    const gemeente = gemeenten.find(g => g.naam === naam);
+    return gemeente ? gemeente.code : null;
+  }
+
+  // Bepaal welke gemeentenamen getoond moeten worden voor de NDW-filter (alleen hoofdgemeente of + omstreken)
+  function getTeTonenGemeenteNamen(hoofdNaam, gebruikOmstreken) {
+    if (!gebruikOmstreken) return [hoofdNaam];
+    
+    const code = getGemeenteCodeByNaam(hoofdNaam);
+    if (!code) return [hoofdNaam];
+    
+    // Gebruik de externe omstreken array
+    const omringendeCodes = omstreken[code] || [];
+    const namen = [hoofdNaam];
+    for (let omCode of omringendeCodes) {
+      const omNaam = getGemeenteNaamByCode(omCode);
+      if (omNaam && !namen.includes(omNaam)) namen.push(omNaam);
+    }
+    return namen;
+  }
+
+  // Filter NDW-lagen op basis van de te tonen gemeentenamen (de WEGEN!)
+  function updateNDWFilter(hoofdNaam, toonOmstreken) {
+    if (!hoofdNaam) return;
+    const teTonen = getTeTonenGemeenteNamen(hoofdNaam, toonOmstreken);
+    
+    console.log("Te tonen gemeenten voor NDW filter:", teTonen);
+    
+    if (teTonen.length === 1) {
+      map.setFilter('rvm-lines', ['==', ['get', 'municipalityName'], teTonen[0]]);
+      setStatus(`${teTonen[0]} - NDW wegvakken geladen`, false);
+    } else {
+      // Meerdere gemeenten: gebruik 'in' filter om alle wegen van deze gemeenten te tonen
+      map.setFilter('rvm-lines', ['in', ['get', 'municipalityName'], ['literal', teTonen]]);
+      setStatus(`${teTonen.length} gemeenten (incl. omstreken) - NDW wegvakken geladen`, false);
+    }
+  }
+
+  // Volledige update bij selectie van gemeente
+  function selecteerGemeente(naam, centerMap = true) {
+    if (!naam || !gemeenteData) return;
+    
+    huidigeGemeenteNaam = naam;
+    huidigeGemeenteCode = getGemeenteCodeByNaam(naam);
+    
+    console.log("Geselecteerde gemeente:", naam, "Code:", huidigeGemeenteCode);
+    console.log("Omstreken actief:", omstrekenActief);
+    
+    // Update NDW filter (met huidige omstreken status) -> Dit toont de WEGEN
+    updateNDWFilter(naam, omstrekenActief);
+    
+    // Center map op de gemeente
+    if (centerMap) {
+      const feature = gemeenteData.features.find(f => f.properties.naam === naam);
+      if (feature) {
+        const bbox = turf.bbox(feature);
+        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
+      }
+    }
+    
+    setStatus(`${naam} geselecteerd${omstrekenActief ? ' + omstreken (wegen getoond)' : ''}`, false);
+  }
+
+  // Toggle omstreken aan/uit (voor de WEGEN)
+  function toggleOmstreken() {
+    if (!huidigeGemeenteNaam) {
+      setStatus("Selecteer eerst een gemeente", true);
+      return;
+    }
+    
+    omstrekenActief = !omstrekenActief;
+    const btn = document.getElementById('toggleOmstrekenBtn');
+    
+    if (omstrekenActief) {
+      btn.innerHTML = '<span class="material-symbols-outlined">near_me</span> Omstreken aan';
+      btn.style.background = '#c04f5a';
+      setStatus(`Omstreken AAN: Wegen van ${huidigeGemeenteNaam} en omliggende gemeenten worden getoond`, false);
+    } else {
+      btn.innerHTML = '<span class="material-symbols-outlined">near_me</span> Omstreken uit';
+      btn.style.background = '#4a6741';
+      setStatus(`Omstreken UIT: Alleen wegen van ${huidigeGemeenteNaam} worden getoond`, false);
+    }
+    
+    // Werk NDW filter bij (dit bepaalt welke WEGEN worden getoond)
+    updateNDWFilter(huidigeGemeenteNaam, omstrekenActief);
+  }
+
+  // Toggle gemeentegrenzen (alleen visueel, geen invloed op wegen)
   function toggleGrenzen() {
     const fillLayer = map.getLayer('gemeente-fill');
     const outlineLayer = map.getLayer('gemeente-outline');
     const labelsLayer = map.getLayer('gemeente-labels');
     
     if (grenzenZichtbaar) {
-      // Verberg de lagen
       if (fillLayer) map.setLayoutProperty('gemeente-fill', 'visibility', 'none');
       if (outlineLayer) map.setLayoutProperty('gemeente-outline', 'visibility', 'none');
       if (labelsLayer) map.setLayoutProperty('gemeente-labels', 'visibility', 'none');
@@ -145,7 +246,6 @@
       document.getElementById('toggleGrenzenBtn').style.background = '#2c3e66';
       setStatus('Gemeentegrenzen verborgen', false);
     } else {
-      // Toon de lagen
       if (fillLayer) map.setLayoutProperty('gemeente-fill', 'visibility', 'visible');
       if (outlineLayer) map.setLayoutProperty('gemeente-outline', 'visibility', 'visible');
       if (labelsLayer) map.setLayoutProperty('gemeente-labels', 'visibility', 'visible');
@@ -156,6 +256,7 @@
     }
   }
 
+  // Gemeentegrenzen laden van PDOK
   async function loadMunicipalities() {
     setStatus("Gemeentegrenzen laden...", false);
     
@@ -182,6 +283,7 @@
       } else {
         newCoords = geom.coordinates.map(poly => poly.map(ring => convertCoords(ring)));
       }
+      
       return {
         type: "Feature",
         properties: { naam: f.properties.naam, code: f.properties.code },
@@ -232,25 +334,20 @@
     setStatus(`${features.length} gemeenten geladen!`, false);
   }
 
-  // Klik op gemeente
+  // ==================== EVENT HANDLERS ====================
+  
+  // Klik op gemeente (fill)
   map.on('click', 'gemeente-fill', (e) => {
     const naam = e.features[0].properties.naam;
     document.getElementById('gemeenteInput').value = naam;
-    map.setFilter('rvm-lines', ['==', ['get', 'municipalityName'], naam]);
-    setStatus(`${naam} - NDW wegvakken geladen`, false);
-    
-    const feature = gemeenteData.features.find(f => f.properties.naam === naam);
-    if (feature) {
-      const bbox = turf.bbox(feature);
-      map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
-    }
+    selecteerGemeente(naam, true);
   });
   
+  // Klik op gemeentelabel
   map.on('click', 'gemeente-labels', (e) => {
     const naam = e.features[0].properties.naam;
     document.getElementById('gemeenteInput').value = naam;
-    map.setFilter('rvm-lines', ['==', ['get', 'municipalityName'], naam]);
-    setStatus(`${naam} - NDW wegvakken geladen`, false);
+    selecteerGemeente(naam, true);
   });
   
   map.on('mouseenter', 'gemeente-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
@@ -273,25 +370,72 @@
   document.getElementById('zoekGemeenteBtn').addEventListener('click', () => {
     const naam = document.getElementById('gemeenteInput').value.trim();
     if (naam && gemeenteData) {
-      map.setFilter('rvm-lines', ['==', ['get', 'municipalityName'], naam]);
       const feature = gemeenteData.features.find(f => f.properties.naam === naam);
       if (feature) {
-        const bbox = turf.bbox(feature);
-        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
+        selecteerGemeente(naam, true);
+      } else {
+        setStatus(`Gemeente "${naam}" niet gevonden`, true);
       }
-      setStatus(`Filter: ${naam}`, false);
     }
   });
   
   document.getElementById('toggleGrenzenBtn').addEventListener('click', toggleGrenzen);
+  document.getElementById('toggleOmstrekenBtn').addEventListener('click', toggleOmstreken);
   
   document.getElementById('resetViewBtn').addEventListener('click', () => {
     map.flyTo({ center: [5.387, 52.156], zoom: 8.5, duration: 1000 });
     setStatus('Heel Nederland', false);
+    huidigeGemeenteNaam = "";
+    huidigeGemeenteCode = null;
+    if (omstrekenActief) {
+      omstrekenActief = false;
+      const btn = document.getElementById('toggleOmstrekenBtn');
+      btn.innerHTML = '<span class="material-symbols-outlined">near_me</span> Omstreken uit';
+      btn.style.background = '#4a6741';
+    }
+    map.setFilter('rvm-lines', ['==', ['get', 'municipalityName'], '']);
   });
   
+  // Vul datalist met gemeentenamen uit de externe gemeenten array
+  function vulSuggesties() {
+    const datalist = document.getElementById('gemeenteSuggesties');
+    datalist.innerHTML = '';
+    if (typeof gemeenten !== 'undefined' && gemeenten.length > 0) {
+      gemeenten.forEach(g => {
+        if (g.naam && g.naam !== "") {
+          const option = document.createElement('option');
+          option.value = g.naam;
+          datalist.appendChild(option);
+        }
+      });
+      console.log(`${gemeenten.filter(g => g.naam).length} gemeenten geladen voor suggesties`);
+    } else {
+      console.error("Gemeenten array niet gevonden of leeg!");
+    }
+  }
+  
+  // Controleer of de externe data geladen is
+  function checkExterneData() {
+    if (typeof gemeenten === 'undefined') {
+      console.error("gemeentes.js is niet correct geladen!");
+      setStatus("Fout: gemeentes.js niet geladen", true);
+      return false;
+    }
+    if (typeof omstreken === 'undefined') {
+      console.error("omstreken.js is niet correct geladen!");
+      setStatus("Fout: omstreken.js niet geladen", true);
+      return false;
+    }
+    console.log("Externe data geladen:", Object.keys(gemeenten).length, "gemeenten,", Object.keys(omstreken).length, "omstreken relaties");
+    return true;
+  }
+  
+  // Start na laden kaart
   map.on('load', async () => {
-    await loadMunicipalities();
+    if (checkExterneData()) {
+      vulSuggesties();
+      await loadMunicipalities();
+    }
   });
 </script>
 </body>

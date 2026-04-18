@@ -4,6 +4,7 @@ Toevoegen:
     Hoe lang onderweg indicatie op popup van isochroon wegen
     zoom terug naar gemeente
     kleur voor wegen waar auto niet opmag
+    isochroon stuk uit script halen en in calculator.js doen
 
 Maybe:
     Alert met gebroken gemeente.
