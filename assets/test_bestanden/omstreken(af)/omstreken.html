@@ -48,6 +48,67 @@
     .material-symbols-outlined { font-size: 18px; }
     .status-msg { position: absolute; bottom: 20px; left: 20px; background: #0f172ad9; color: white; padding: 8px 18px; border-radius: 40px; font-size: 12px; z-index: 1000; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
     .legend { position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.75); color: white; padding: 8px 14px; border-radius: 24px; font-size: 11px; z-index: 1000; display: flex; gap: 16px; }
+    
+    /* Zoom indicator styling */
+    .zoom-indicator {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      border-radius: 40px;
+      padding: 8px 16px;
+      font-family: 'Segoe UI', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.2);
+      pointer-events: none;
+    }
+    
+    .zoom-level {
+      color: #f97316;
+      font-size: 18px;
+      font-weight: 700;
+      min-width: 45px;
+      text-align: center;
+    }
+    
+    .zoom-bar-container {
+      width: 120px;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .zoom-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4a6741, #f97316);
+      border-radius: 4px;
+      transition: width 0.2s ease;
+      width: 0%;
+    }
+    
+    .zoom-label {
+      color: rgba(255,255,255,0.7);
+      font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+    
+    @media (max-width: 640px) {
+      .zoom-indicator { 
+        top: 10px;
+        right: 10px;
+        padding: 6px 12px;
+      }
+      .zoom-bar-container { width: 80px; }
+      .zoom-level { font-size: 14px; min-width: 35px; }
+    }
   </style>
 </head>
 <body>
@@ -76,6 +137,16 @@
   <span>🟠 NDW wegvakken</span>
   <span>🟢 Gemeentegrenzen</span>
   <span>📝 Gemeentelabels</span>
+</div>
+
+<!-- Zoom indicator -->
+<div class="zoom-indicator" id="zoomIndicator">
+  <span class="material-symbols-outlined" style="font-size: 16px;">zoom_in_map</span>
+  <div class="zoom-bar-container">
+    <div class="zoom-bar-fill" id="zoomBarFill"></div>
+  </div>
+  <span class="zoom-level" id="zoomLevel">Zoom 0</span>
+  <span class="zoom-label">zoom</span>
 </div>
 
 <script>
@@ -134,6 +205,41 @@
     el.innerText = isError ? `⚠️ ${text}` : `✓ ${text}`;
     el.style.opacity = "1";
     setTimeout(() => { el.style.opacity = "0"; }, 3000);
+  }
+
+  // Helper: zoom indicator updaten
+  function updateZoomIndicator() {
+    const zoom = map.getZoom();
+    const zoomLevelElement = document.getElementById('zoomLevel');
+    const zoomBarFill = document.getElementById('zoomBarFill');
+    
+    // Zoom range: 0-20 (max zoom van MapLibre GL)
+    const minZoom = 0;
+    const maxZoom = 20;
+    const percentage = ((zoom - minZoom) / (maxZoom - minZoom)) * 100;
+    const clampedPercentage = Math.min(100, Math.max(0, percentage));
+    
+    // Update de balk
+    if (zoomBarFill) {
+      zoomBarFill.style.width = `${clampedPercentage}%`;
+    }
+    
+    // Update de tekst met één decimaal voor precisie
+    if (zoomLevelElement) {
+      zoomLevelElement.textContent = `${zoom.toFixed(1)}`;
+    }
+    
+    // Optioneel: pas de kleur van de indicator aan op basis van zoomniveau
+    const indicator = document.getElementById('zoomIndicator');
+    if (indicator) {
+      if (zoom < 8) {
+        indicator.style.borderLeft = '3px solid #4a6741';
+      } else if (zoom < 12) {
+        indicator.style.borderLeft = '3px solid #f97316';
+      } else {
+        indicator.style.borderLeft = '3px solid #dc2626';
+      }
+    }
   }
 
   // Helper: vind gemeentenaam op basis van code (uit de externe gemeenten array)
@@ -201,6 +307,7 @@
       if (feature) {
         const bbox = turf.bbox(feature);
         map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
+        // De zoom indicator wordt automatisch geüpdatet na de fitBounds (via moveend event)
       }
     }
     
@@ -366,6 +473,12 @@
   map.on('mouseenter', 'rvm-lines', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'rvm-lines', () => { map.getCanvas().style.cursor = ''; });
   
+  // Zoom events voor de indicator
+  map.on('zoom', updateZoomIndicator);
+  map.on('zoomend', updateZoomIndicator);
+  map.on('moveend', updateZoomIndicator);
+  map.on('load', updateZoomIndicator);
+  
   // UI Events
   document.getElementById('zoekGemeenteBtn').addEventListener('click', () => {
     const naam = document.getElementById('gemeenteInput').value.trim();
@@ -435,6 +548,7 @@
     if (checkExterneData()) {
       vulSuggesties();
       await loadMunicipalities();
+      updateZoomIndicator(); // Initial update
     }
   });
 </script>

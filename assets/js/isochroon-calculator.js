@@ -308,7 +308,7 @@ const IsochroonCalculator = (function () {
     }
 
     function getColorClasses(timeLimitMinutes) {
-        const colors = ['#e5ff00e0', '#00d131', '#00b4d4', '#a200ce'];
+        const colors = ['#e5ff00e0', '#00d131', '#00b4d4', '#5407e3'];
         const classWidth = 25;
         
         return colors.map((color, i) => {
