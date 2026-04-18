@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<title>NDW Viewer Dark Fast</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script src="../data/gemeentes.js"></script>
+
+<style>
+html,body{margin:0;height:100%;font-family:Arial}
+#map{width:100%;height:100%}
+
+#searchBox{
+  position:absolute;
+  top:15px;
+  left:15px;
+  background:#1e1e1e;
+  color:white;
+  padding:12px;
+  border-radius:6px;
+  width:260px;
+  z-index:10;
+}
+
+select,button{width:100%;margin-top:8px;padding:6px}
+button{background:#3b82f6;color:white;border:none;cursor:pointer}
+</style>
+</head>
+
+<body>
+<div id="map"></div>
+
+<div id="searchBox">
+  <label>Gemeente</label>
+  <select id="municipalitySelect"></select>
+  <button onclick="applyMunicipality()">Toon</button>
+</div>
+
+<script>
+
+/* ========================= MAP ========================= */
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+
+    sources: {
+
+      /* 🌑 PDOK GRAYSCALE */
+      "pdok-grijs": {
+        type: "raster",
+        tiles: [
+          "https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png"
+        ],
+        tileSize: 256,
+        attribution: "© PDOK"
+      },
+
+      /* 🌌 ESRI SATELLITE (optioneel layer) */
+      "esri-satellite": {
+        type: "raster",
+        tiles: [
+          "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg"
+        ],
+        tileSize: 256,
+        attribution: "© Esri"
+      },
+
+      /* 🛣 NDW ROADS */
+      rvm_segments: {
+        type: "vector",
+        tiles: [
+          "https://maps.ndw.nu/api/v1/nwb/latest/mbtiles/roadSections/tiles/{z}/{x}/{y}.pbf"
+        ]
+      },
+
+      /* 🚗 TRAFFIC TYPES (future use) */
+      wkd_traffic: {
+        type: "vector",
+        tiles: [
+          "https://maps.ndw.nu/api/v1/wkdTrafficTypes/20251101/mbtiles/segments/tiles/{z}/{x}/{y}.pbf"
+        ],
+        maxzoom: 20,
+        minzoom: 4
+      },
+
+      /* 📍 verkeersborden */
+      trafficSigns: {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] }
+      }
+    },
+
+    layers: [
+
+      /* ========================= BASE MAP ========================= */
+      {
+        id: "pdok-grijs-layer",
+        type: "raster",
+        source: "pdok-grijs",
+        paint: {
+          "raster-brightness-max": 0.3,
+          "raster-contrast": 0.3,
+          "raster-saturation": -0.8,
+          "raster-opacity": 0.95
+        }
+      },
+
+      {
+        id: "esri-satellite-layer",
+        type: "raster",
+        source: "esri-satellite",
+        layout: { visibility: "none" },
+        paint: {
+          "raster-opacity": 0.9,
+          "raster-brightness-max": 0.6,
+          "raster-contrast": 0.5,
+          "raster-saturation": 0.0
+        }
+      },
+
+      /* ========================= ROADS ========================= */
+      {
+        id: "rvm-lines",
+        type: "line",
+        source: "rvm_segments",
+        "source-layer": "roadSections",
+        paint: {
+          "line-color": "rgba(10,10,10,1)",
+          "line-width": [
+            "interpolate", ["linear"], ["zoom"],
+            6, 0.5,
+            10, 1.2,
+            14, 2.5,
+            18, 4
+          ],
+          "line-opacity": 0.85
+        }
+      },
+
+      /* ========================= SIGNS ========================= */
+      {
+        id: "trafficSigns",
+        type: "symbol",
+        source: "trafficSigns",
+        minzoom: 12,
+        layout: {
+          "icon-image": ["get", "icon"],
+          "icon-size": 0.13,
+          "icon-allow-overlap": true
+        }
+      }
+    ]
+  },
+
+  center: [5.1, 52.1],
+  zoom: 8
+});
+
+map.addControl(new maplibregl.NavigationControl());
+
+/* ========================= DROPDOWN ========================= */
+const select = document.getElementById("municipalitySelect");
+
+gemeenten.forEach(g => {
+  const o = document.createElement("option");
+  o.value = g.code;
+  o.textContent = g.naam;
+  select.appendChild(o);
+});
+
+/* ========================= CACHE ========================= */
+const iconCache = new Set();
+let abortCtrl = null;
+
+/* ========================= FAST LOADER ========================= */
+async function loadTrafficSigns(code) {
+
+  if (abortCtrl) abortCtrl.abort();
+  abortCtrl = new AbortController();
+
+  const res = await fetch(
+    `https://data.ndw.nu/api/rest/static-road-data/traffic-signs/v4/current-state?countyCode=${code}`,
+    { signal: abortCtrl.signal }
+  );
+
+  const json = await res.json();
+
+  const features = (json.features || []).slice(0, 1500);
+
+  const tasks = [];
+
+  for (const f of features) {
+    const p = f.properties;
+
+    if (!p?.imageUrl || !p?.rvvCode) continue;
+
+    const id = "rvv-" + p.rvvCode;
+    f.properties.icon = id;
+
+    if (!iconCache.has(id)) {
+      iconCache.add(id);
+
+      tasks.push(new Promise(resolve => {
+        map.loadImage(p.imageUrl, (err, img) => {
+          if (!err && img && !map.hasImage(id)) {
+            map.addImage(id, img);
+          }
+          resolve();
+        });
+      }));
+    }
+  }
+
+  Promise.all(tasks).then(() => {
+    map.getSource("trafficSigns").setData({
+      type: "FeatureCollection",
+      features
+    });
+  });
+}
+
+/* ========================= APPLY ========================= */
+function applyMunicipality() {
+  const g = gemeenten.find(x => x.code === select.value);
+  if (!g) return;
+
+  map.setFilter("rvm-lines", [
+    "==",
+    ["get", "municipalityName"],
+    g.naam
+  ]);
+
+  map.fitBounds(g.bounds, {
+    padding: 50,
+    duration: 500
+  });
+
+  loadTrafficSigns("GM" + g.code);
+}
+
+/* ========================= START ========================= */
+map.on("load", () => {
+  const u = gemeenten.find(g => g.code === "0344");
+  select.value = "0344";
+
+  map.setFilter("rvm-lines", [
+    "==",
+    ["get", "municipalityName"],
+    u.naam
+  ]);
+
+  map.fitBounds(u.bounds, {
+    padding: 50,
+    duration: 700
+  });
+
+  loadTrafficSigns("GM0344");
+});
+
+</script>
+</body>
+</html>
