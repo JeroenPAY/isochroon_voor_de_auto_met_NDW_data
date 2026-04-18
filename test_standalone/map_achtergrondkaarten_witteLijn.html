@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>NDW RVM – Gemeente viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    #controls {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      background: white;
+      padding: 12px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      z-index: 1000;
+      font-size: 13px;
+      width: 240px;
+    }
+
+    #controls label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    #controls input {
+      width: 100%;
+      padding: 6px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      margin-bottom: 8px;
+      box-sizing: border-box;
+    }
+
+    #controls button {
+      width: 100%;
+      padding: 6px;
+      border: none;
+      background: #007cff;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+
+    #controls button:hover {
+      background: #005fcc;
+    }
+
+    .separator {
+      height: 1px;
+      background: #ccc;
+      margin: 10px 0;
+    }
+
+    .basemap-selector {
+      margin-top: 8px;
+    }
+
+    .basemap-selector select {
+      width: 100%;
+      padding: 6px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .basemap-selector label {
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="controls">
+  <label for="municipalityInput">Gemeente</label>
+  <input id="municipalityInput" type="text" value="Helmond">
+  <button onclick="applyMunicipality()">Toon gemeente</button>
+  
+  <div class="separator"></div>
+  
+  <div class="basemap-selector">
+    <label>Achtergrondkaart</label>
+    <select id="basemapSelect" onchange="switchBasemap()">
+      <option value="pdok-grijs">PDOK Grijs</option>
+      <option value="esri-satellite">ESRI Luchtfoto</option>
+    </select>
+  </div>
+</div>
+
+<script>
+  let currentMunicipality = "Helmond";
+  let currentBasemap = "pdok-grijs";
+
+  function getMapStyle() {
+    return {
+      "version": 8,
+      "sources": {
+        "pdok-grijs": { 
+          "type": "raster", 
+          "tiles": ["https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png"], 
+          "tileSize": 256,
+          "attribution": "© PDOK"
+        },
+        "esri-satellite": { 
+          "type": "raster", 
+          "tiles": ["https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg"], 
+          "tileSize": 256,
+          "attribution": "© Esri"
+        },
+        "rvm_segments": { 
+          "type": "vector", 
+          "tiles": ["https://maps.ndw.nu/api/v1/nwb/latest/mbtiles/roadSections/tiles/{z}/{x}/{y}.pbf"] 
+        },
+        "wkd_traffic": { 
+          "type": "vector", 
+          "tiles": ["https://maps.ndw.nu/api/v1/wkdTrafficTypes/20251101/mbtiles/segments/tiles/{z}/{x}/{y}.pbf"], 
+          "maxzoom": 20, 
+          "minzoom": 4 
+        }
+      },
+      "layers": [
+        { 
+          "id": "pdok-grijs-layer", 
+          "type": "raster", 
+          "source": "pdok-grijs", 
+          "paint": { 
+            "raster-brightness-max": 0.3,
+            "raster-contrast": 0.3, 
+            "raster-saturation": -0.8,
+            "raster-opacity": 0.9 
+          },
+          "layout": { "visibility": currentBasemap === "pdok-grijs" ? "visible" : "none" }
+        },
+        { 
+          "id": "esri-satellite-layer", 
+          "type": "raster", 
+          "source": "esri-satellite", 
+          "paint": {
+            "raster-opacity": 0.9,
+            "raster-brightness-max": 0.6,
+            "raster-contrast": 0.5,
+            "raster-saturation": 0.0
+          },
+          "layout": { "visibility": currentBasemap === "esri-satellite" ? "visible" : "none" }
+        },
+        { 
+          "id": "rvm-lines", 
+          "type": "line", 
+          "source": "rvm_segments", 
+          "source-layer": "roadSections", 
+          "paint": { 
+            "line-color": "rgba(255, 255, 255, 1)",
+            "line-width": 2.5,
+            "line-opacity": 0.8
+          }, 
+          "filter": ["==", ["get", "municipalityName"], currentMunicipality] 
+        }
+      ]
+    };
+  }
+
+  const map = new maplibregl.Map({
+    container: "map",
+    style: getMapStyle(),
+    center: [5.66, 51.47],
+    zoom: 12
+  });
+
+  map.addControl(new maplibregl.NavigationControl());
+
+  function switchBasemap() {
+    const select = document.getElementById("basemapSelect");
+    currentBasemap = select.value;
+    
+    // Switch layer visibility
+    if (currentBasemap === "pdok-grijs") {
+      map.setLayoutProperty("pdok-grijs-layer", "visibility", "visible");
+      map.setLayoutProperty("esri-satellite-layer", "visibility", "none");
+    } else {
+      map.setLayoutProperty("pdok-grijs-layer", "visibility", "none");
+      map.setLayoutProperty("esri-satellite-layer", "visibility", "visible");
+    }
+  }
+
+  function applyMunicipality() {
+    const name = document.getElementById("municipalityInput").value.trim();
+    if (!name) return;
+
+    currentMunicipality = name;
+    
+    // Update filter
+    map.setFilter("rvm-lines", [
+      "==",
+      ["get", "municipalityName"],
+      name
+    ]);
+
+    // Zoom naar de gemeente
+    setTimeout(() => {
+      zoomToMunicipality(name);
+    }, 500);
+  }
+
+  function zoomToMunicipality(name) {
+    // Wacht tot de tiles geladen zijn en query dan de features
+    const checkFeatures = () => {
+      const features = map.querySourceFeatures("rvm_segments", {
+        sourceLayer: "roadSections",
+        filter: ["==", ["get", "municipalityName"], name]
+      });
+
+      if (!features.length) {
+        // Probeer opnieuw na korte vertraging als nog geen features beschikbaar zijn
+        setTimeout(checkFeatures, 200);
+        return;
+      }
+
+      let minX = Infinity, minY = Infinity;
+      let maxX = -Infinity, maxY = -Infinity;
+
+      features.forEach(f => {
+        const geom = f.geometry;
+
+        if (geom.type === "LineString") {
+          geom.coordinates.forEach(c => expand(c));
+        } else if (geom.type === "MultiLineString") {
+          geom.coordinates.forEach(line => {
+            line.forEach(c => expand(c));
+          });
+        }
+      });
+
+      function expand([x, y]) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+
+      if (minX !== Infinity && maxX !== -Infinity) {
+        map.fitBounds(
+          [[minX, minY], [maxX, maxY]],
+          {
+            padding: 40,
+            duration: 800
+          }
+        );
+      }
+    };
+
+    checkFeatures();
+  }
+
+  map.on("click", "rvm-lines", (e) => {
+    const p = e.features[0].properties;
+    let html = "<strong>RVM wegvak</strong><br><br>";
+
+    const propertiesToShow = [
+      "roadSectionId", 
+      "municipalityName", 
+      "drivingDirection", 
+      "carriagewayTypeCode",
+      "roadNumber",
+      "roadSectionLength"
+    ];
+    
+    propertiesToShow.forEach(key => {
+      if (p[key] !== undefined && p[key] !== null) {
+        html += `<strong>${key}:</strong> ${p[key]}<br>`;
+      }
+    });
+
+    new maplibregl.Popup()
+      .setLngLat(e.lngLat)
+      .setHTML(html)
+      .addTo(map);
+  });
+
+  map.on("mouseenter", "rvm-lines", () => {
+    map.getCanvas().style.cursor = "pointer";
+  });
+
+  map.on("mouseleave", "rvm-lines", () => {
+    map.getCanvas().style.cursor = "";
+  });
+
+  // Initial zoom naar de standaard gemeente
+  map.on("load", () => {
+    setTimeout(() => {
+      zoomToMunicipality(currentMunicipality);
+    }, 1000);
+  });
+</script>
+
+</body>
+</html>

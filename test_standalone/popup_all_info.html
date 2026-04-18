@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>NDW RVM – Gemeente viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    #controls {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      background: white;
+      padding: 12px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      z-index: 1000;
+      font-size: 13px;
+      width: 260px;
+    }
+
+    #controls label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    #controls input {
+      width: 100%;
+      padding: 6px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      margin-bottom: 8px;
+      box-sizing: border-box;
+    }
+
+    #controls button {
+      width: 100%;
+      padding: 6px;
+      border: none;
+      background: #007cff;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+
+    #controls button:hover {
+      background: #005fcc;
+    }
+
+    .separator {
+      height: 1px;
+      background: #ccc;
+      margin: 10px 0;
+    }
+
+    .basemap-selector {
+      margin-top: 8px;
+    }
+
+    .basemap-selector select {
+      width: 100%;
+      padding: 6px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .custom-popup {
+      max-width: 500px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    .custom-popup h3 {
+      margin: 0 0 10px 0;
+      color: #007cff;
+      font-size: 16px;
+      border-bottom: 2px solid #007cff;
+      padding-bottom: 5px;
+    }
+
+    .custom-popup .property-group {
+      margin-bottom: 12px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+
+    .custom-popup .property-group strong {
+      color: #333;
+      display: block;
+      margin-bottom: 5px;
+      font-size: 13px;
+      background: #f5f5f5;
+      padding: 4px;
+      border-radius: 3px;
+    }
+
+    .custom-popup .property-item {
+      margin-left: 10px;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    .custom-popup .property-key {
+      font-weight: bold;
+      color: #555;
+    }
+
+    .custom-popup .property-value {
+      color: #000;
+      margin-left: 8px;
+    }
+
+    .length-highlight {
+      background: #e8f5e9;
+      border-left: 3px solid #4caf50;
+      padding: 8px;
+      margin-bottom: 10px;
+    }
+
+    .accuracy-warning {
+      background: #fff3e0;
+      border-left: 3px solid #ff9800;
+      padding: 8px;
+      margin-bottom: 10px;
+      font-size: 11px;
+      color: #666;
+    }
+
+    .length-details {
+      font-size: 11px;
+      color: #666;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="controls">
+  <label for="municipalityInput">Gemeente</label>
+  <input id="municipalityInput" type="text" value="Helmond">
+  <button onclick="applyMunicipality()">Toon gemeente</button>
+  
+  <div class="separator"></div>
+  
+  <div class="basemap-selector">
+    <label>Achtergrondkaart</label>
+    <select id="basemapSelect" onchange="switchBasemap()">
+      <option value="pdok-grijs">PDOK Grijs</option>
+      <option value="esri-satellite">ESRI Luchtfoto</option>
+    </select>
+  </div>
+</div>
+
+<script>
+  let currentMunicipality = "Helmond";
+  let currentBasemap = "pdok-grijs";
+
+  function getMapStyle() {
+    return {
+      "version": 8,
+      "sources": {
+        "pdok-grijs": { 
+          "type": "raster", 
+          "tiles": ["https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png"], 
+          "tileSize": 256,
+          "attribution": "© PDOK"
+        },
+        "esri-satellite": { 
+          "type": "raster", 
+          "tiles": ["https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg"], 
+          "tileSize": 256,
+          "attribution": "© Esri"
+        },
+        "rvm_segments": { 
+          "type": "vector", 
+          "tiles": ["https://maps.ndw.nu/api/v1/nwb/latest/mbtiles/roadSections/tiles/{z}/{x}/{y}.pbf"] 
+        }
+      },
+      "layers": [
+        { 
+          "id": "pdok-grijs-layer", 
+          "type": "raster", 
+          "source": "pdok-grijs", 
+          "paint": { 
+            "raster-brightness-max": 0.3,
+            "raster-contrast": 0.3, 
+            "raster-saturation": -0.8,
+            "raster-opacity": 0.9 
+          },
+          "layout": { "visibility": currentBasemap === "pdok-grijs" ? "visible" : "none" }
+        },
+        { 
+          "id": "esri-satellite-layer", 
+          "type": "raster", 
+          "source": "esri-satellite", 
+          "paint": {
+            "raster-opacity": 0.9,
+            "raster-brightness-max": 0.6,
+            "raster-contrast": 0.5,
+            "raster-saturation": 0.0
+          },
+          "layout": { "visibility": currentBasemap === "esri-satellite" ? "visible" : "none" }
+        },
+        { 
+          "id": "rvm-lines", 
+          "type": "line", 
+          "source": "rvm_segments", 
+          "source-layer": "roadSections", 
+          "paint": { 
+            "line-color": "rgba(11, 11, 11, 1)",
+            "line-width": 2.5,
+            "line-opacity": 0.8
+          }, 
+          "filter": ["==", ["get", "municipalityName"], currentMunicipality] 
+        }
+      ]
+    };
+  }
+
+  const map = new maplibregl.Map({
+    container: "map",
+    style: getMapStyle(),
+    center: [5.66, 51.47],
+    zoom: 12
+  });
+
+  map.addControl(new maplibregl.NavigationControl());
+
+  function switchBasemap() {
+    const select = document.getElementById("basemapSelect");
+    currentBasemap = select.value;
+    
+    if (currentBasemap === "pdok-grijs") {
+      map.setLayoutProperty("pdok-grijs-layer", "visibility", "visible");
+      map.setLayoutProperty("esri-satellite-layer", "visibility", "none");
+    } else {
+      map.setLayoutProperty("pdok-grijs-layer", "visibility", "none");
+      map.setLayoutProperty("esri-satellite-layer", "visibility", "visible");
+    }
+  }
+
+  function applyMunicipality() {
+    const name = document.getElementById("municipalityInput").value.trim();
+    if (!name) return;
+
+    currentMunicipality = name;
+    
+    map.setFilter("rvm-lines", [
+      "==",
+      ["get", "municipalityName"],
+      name
+    ]);
+
+    setTimeout(() => {
+      zoomToMunicipality(name);
+    }, 500);
+  }
+
+  function zoomToMunicipality(name) {
+    const checkFeatures = () => {
+      const features = map.querySourceFeatures("rvm_segments", {
+        sourceLayer: "roadSections",
+        filter: ["==", ["get", "municipalityName"], name]
+      });
+
+      if (!features.length) {
+        setTimeout(checkFeatures, 200);
+        return;
+      }
+
+      let minX = Infinity, minY = Infinity;
+      let maxX = -Infinity, maxY = -Infinity;
+
+      features.forEach(f => {
+        const geom = f.geometry;
+        if (geom.type === "LineString") {
+          geom.coordinates.forEach(c => expand(c));
+        } else if (geom.type === "MultiLineString") {
+          geom.coordinates.forEach(line => {
+            line.forEach(c => expand(c));
+          });
+        }
+      });
+
+      function expand([x, y]) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+
+      if (minX !== Infinity && maxX !== -Infinity) {
+        map.fitBounds(
+          [[minX, minY], [maxX, maxY]],
+          { padding: 40, duration: 800 }
+        );
+      }
+    };
+    checkFeatures();
+  }
+
+  // Zeer nauwkeurige lengteberekening met Vincenty's formule (nauwkeurig tot mm)
+  function calculateLengthVincenty(coordinates) {
+    let totalLength = 0;
+    
+    for (let i = 0; i < coordinates.length - 1; i++) {
+      const p1 = coordinates[i];
+      const p2 = coordinates[i + 1];
+      totalLength += vincentyDistance(p1[1], p1[0], p2[1], p2[0]);
+    }
+    
+    return totalLength;
+  }
+
+  // Vincenty's inverse formule - nauwkeurig tot op millimeters
+  function vincentyDistance(lat1, lon1, lat2, lon2) {
+    const a = 6378137;  // Equatoriale radius in meters (WGS84)
+    const b = 6356752.314245; // Polaire radius in meters (WGS84)
+    const f = 1 / 298.257223563; // Afplatting (WGS84)
+    
+    const phi1 = lat1 * Math.PI / 180;
+    const phi2 = lat2 * Math.PI / 180;
+    const L = (lon2 - lon1) * Math.PI / 180;
+    
+    const tanU1 = (1 - f) * Math.tan(phi1);
+    const tanU2 = (1 - f) * Math.tan(phi2);
+    const U1 = Math.atan(tanU1);
+    const U2 = Math.atan(tanU2);
+    const sinU1 = Math.sin(U1);
+    const cosU1 = Math.cos(U1);
+    const sinU2 = Math.sin(U2);
+    const cosU2 = Math.cos(U2);
+    
+    let lambda = L;
+    let lambdaP;
+    let iterLimit = 100;
+    let sinLambda, cosLambda, sinSigma, cosSigma, sigma, sinAlpha, cosSqAlpha, cos2SigmaM, C;
+    
+    do {
+      sinLambda = Math.sin(lambda);
+      cosLambda = Math.cos(lambda);
+      sinSigma = Math.sqrt((cosU2 * sinLambda) * (cosU2 * sinLambda) +
+        (cosU1 * sinU2 - sinU1 * cosU2 * cosLambda) *
+        (cosU1 * sinU2 - sinU1 * cosU2 * cosLambda));
+      
+      if (sinSigma === 0) return 0;
+      
+      cosSigma = sinU1 * sinU2 + cosU1 * cosU2 * cosLambda;
+      sigma = Math.atan2(sinSigma, cosSigma);
+      sinAlpha = cosU1 * cosU2 * sinLambda / sinSigma;
+      cosSqAlpha = 1 - sinAlpha * sinAlpha;
+      cos2SigmaM = cosSigma - 2 * sinU1 * sinU2 / cosSqAlpha;
+      
+      if (isNaN(cos2SigmaM)) cos2SigmaM = 0;
+      
+      C = f / 16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha));
+      lambdaP = lambda;
+      lambda = L + (1 - C) * f * sinAlpha *
+        (sigma + C * sinSigma * (cos2SigmaM + C * cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM)));
+    } while (Math.abs(lambda - lambdaP) > 1e-12 && --iterLimit > 0);
+    
+    if (iterLimit === 0) return NaN;
+    
+    const uSq = cosSqAlpha * (a * a - b * b) / (b * b);
+    const A = 1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
+    const B = uSq / 1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)));
+    const deltaSigma = B * sinSigma * (cos2SigmaM + B / 4 * (cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM) -
+      B / 6 * cos2SigmaM * (-3 + 4 * sinSigma * sinSigma) * (-3 + 4 * cos2SigmaM * cos2SigmaM)));
+    
+    const s = b * A * (sigma - deltaSigma);
+    return s;
+  }
+
+  // Standaard Haversine formule (nauwkeurig tot ~0.5%)
+  function calculateLengthHaversine(coordinates) {
+    let totalLength = 0;
+    
+    for (let i = 0; i < coordinates.length - 1; i++) {
+      const p1 = coordinates[i];
+      const p2 = coordinates[i + 1];
+      
+      const R = 6371000; // Aardradius in meters
+      const lat1 = p1[1] * Math.PI / 180;
+      const lat2 = p2[1] * Math.PI / 180;
+      const deltaLat = (p2[1] - p1[1]) * Math.PI / 180;
+      const deltaLon = (p2[0] - p1[0]) * Math.PI / 180;
+      
+      const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+                Math.cos(lat1) * Math.cos(lat2) *
+                Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distance = R * c;
+      
+      totalLength += distance;
+    }
+    
+    return totalLength;
+  }
+
+  function calculateLineLength(geometry) {
+    try {
+      let totalLength = 0;
+      let coordinates = [];
+      
+      if (geometry.type === "LineString") {
+        coordinates = geometry.coordinates;
+      } else if (geometry.type === "MultiLineString") {
+        geometry.coordinates.forEach(line => {
+          coordinates = coordinates.concat(line);
+        });
+      }
+      
+      if (coordinates.length < 2) return 0;
+      
+      // Gebruik Vincenty voor maximale nauwkeurigheid (mm precisie)
+      const vincentyLength = calculateLengthVincenty(coordinates);
+      
+      return vincentyLength;
+    } catch (error) {
+      console.error("Fout bij lengteberekening:", error);
+      return 0;
+    }
+  }
+
+  function formatLengthSuperPrecise(meters) {
+    if (meters >= 1000) {
+      return `${(meters / 1000).toFixed(3)} km (${Math.round(meters)} meter)`;
+    } else {
+      return `${meters.toFixed(2)} m (${Math.round(meters * 100)} cm)`;
+    }
+  }
+
+  function getAccuracyInfo(geometry) {
+    let coordinates = [];
+    if (geometry.type === "LineString") {
+      coordinates = geometry.coordinates;
+    } else if (geometry.type === "MultiLineString") {
+      geometry.coordinates.forEach(line => {
+        coordinates = coordinates.concat(line);
+      });
+    }
+    
+    const segmentCount = coordinates.length - 1;
+    const avgSegmentLength = segmentCount > 0 ? calculateLengthHaversine(coordinates) / segmentCount : 0;
+    
+    let accuracyLevel = "";
+    let explanation = "";
+    
+    if (segmentCount < 5) {
+      accuracyLevel = "⚠️ Lage nauwkeurigheid";
+      explanation = "Weinig coördinatenpunten, lengte is een benadering. Foutmarge: 5-10 meter.";
+    } else if (segmentCount < 20) {
+      accuracyLevel = "📏 Gemiddelde nauwkeurigheid";
+      explanation = "Redelijk aantal punten. Foutmarge: 1-5 meter.";
+    } else {
+      accuracyLevel = "✅ Hoge nauwkeurigheid";
+      explanation = "Veel meetpunten, lengte is betrouwbaar. Foutmarge: < 1 meter.";
+    }
+    
+    if (avgSegmentLength > 50) {
+      explanation += " Let op: grote afstanden tussen punten, lengte kan afwijken van werkelijke wegligging.";
+    }
+    
+    return { accuracyLevel, explanation, segmentCount };
+  }
+
+  function formatPropertyValue(value) {
+    if (value === null || value === undefined) return "Niet beschikbaar";
+    if (typeof value === 'number') return value.toString();
+    return value;
+  }
+
+  function getAllPropertiesAsHTML(properties, geometry, lengthInMeters) {
+    const categories = {
+      "📏 Lengte informatie": ["_calculated_length"],
+      "🆔 Identificatie": ["roadSectionId", "roadNumber", "roadName", "alternativeNumber", "alternativeName"],
+      "📍 Locatie": ["municipalityName", "municipalityId", "townName", "districtName", "districtCode"],
+      "🛣️ Weg kenmerken": ["roadType", "roadTypeDescription", "formOfWay", "functionalRoadClass", "carriagewayTypeCode"],
+      "🧭 Rijrichting": ["drivingDirection", "administrativeDirection", "relativePositionCode", "roadOrientationLineRelativePosition"],
+      "📊 Kilometrering": ["fromKilometre", "toKilometre", "distanceFrom", "distanceTo"],
+      "🏢 Wegbeheer": ["roadOperatorName", "roadOperatorCode", "roadOperatorType"],
+      "ℹ️ Overig": ["validFrom", "sourceYear", "geometrySourceName"]
+    };
+
+    let html = '<div class="custom-popup">';
+    html += '<h3>📋 RVM Wegvak Informatie</h3>';
+    
+    const accuracyInfo = getAccuracyInfo(geometry);
+    
+    // Toon lengte met hoge precisie
+    html += `<div class="length-highlight">
+      <strong>📏 Exacte lengte van dit wegvak:</strong><br>
+      <span style="font-size: 18px; font-weight: bold;">${formatLengthSuperPrecise(lengthInMeters)}</span>
+      <div class="length-details">
+        ${accuracyInfo.accuracyLevel}<br>
+        ${accuracyInfo.explanation}<br>
+        Aantal meetpunten: ${accuracyInfo.segmentCount + 1} | Segmenten: ${accuracyInfo.segmentCount}
+      </div>
+    </div>`;
+    
+    // Waarschuwing over praktische nauwkeurigheid
+    html += `<div class="accuracy-warning">
+      <strong>ℹ️ Over nauwkeurigheid:</strong><br>
+      • Theoretisch kan de lengte tot op millimeters worden berekend<br>
+      • Praktisch is de NWB-data nauwkeurig tot ~1-5 meter<br>
+      • Wegen zijn niet perfect recht tussen meetpunten<br>
+      • Centimeterprecisie is niet zinvol voor wegvakken<br>
+      • De weergegeven lengte is een wiskundige benadering op basis van de beschikbare coördinaten
+    </div>`;
+
+    for (const [category, fields] of Object.entries(categories)) {
+      let hasFields = false;
+      let categoryHtml = `<div class="property-group"><strong>${category}</strong>`;
+      
+      for (const field of fields) {
+        if (field === "_calculated_length") continue;
+        
+        if (properties[field] !== undefined && properties[field] !== null && properties[field] !== "") {
+          const value = formatPropertyValue(properties[field]);
+          const displayField = field.replace(/([A-Z])/g, ' $1').trim();
+          categoryHtml += `<div class="property-item">
+            <span class="property-key">${displayField}:</span>
+            <span class="property-value">${value}</span>
+          </div>`;
+          hasFields = true;
+        }
+      }
+      
+      categoryHtml += '</div>';
+      if (hasFields) {
+        html += categoryHtml;
+      }
+    }
+    
+    html += '</div>';
+    return html;
+  }
+
+  map.on("click", "rvm-lines", (e) => {
+    if (!e.features || e.features.length === 0) return;
+    
+    const feature = e.features[0];
+    const properties = feature.properties;
+    const geometry = feature.geometry;
+    
+    const lengthInMeters = calculateLineLength(geometry);
+    
+    const html = getAllPropertiesAsHTML(properties, geometry, lengthInMeters);
+    
+    new maplibregl.Popup({
+      maxWidth: "500px",
+      maxHeight: "600px",
+      closeButton: true,
+      closeOnClick: false
+    })
+      .setLngLat(e.lngLat)
+      .setHTML(html)
+      .addTo(map);
+  });
+
+  map.on("mouseenter", "rvm-lines", () => {
+    map.getCanvas().style.cursor = "pointer";
+  });
+
+  map.on("mouseleave", "rvm-lines", () => {
+    map.getCanvas().style.cursor = "";
+  });
+
+  map.on("load", () => {
+    setTimeout(() => {
+      zoomToMunicipality(currentMunicipality);
+    }, 1000);
+  });
+</script>
+
+</body>
+</html>
