@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>NDW Verkeersborden Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+  <script src="data/gemeentes.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: Arial;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    #searchBox {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      background: white;
+      padding: 12px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      z-index: 1000;
+      width: 260px;
+    }
+
+    select, button {
+      width: 100%;
+      margin-top: 8px;
+      padding: 6px;
+    }
+
+    button {
+      background: #007cff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    img.sign {
+      width: 100%;
+      margin-top: 8px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="searchBox">
+  <label>Gemeente</label>
+  <select id="municipalitySelect"></select>
+  <button onclick="applyMunicipality()">Toon</button>
+</div>
+
+<script>
+
+/* =========================
+   INIT MAP
+========================= */
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    sources: {
+      bg: {
+        type: "raster",
+        tiles: [
+          "https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png"
+        ],
+        tileSize: 256
+      },
+      roads: {
+        type: "vector",
+        tiles: [
+          "https://maps.ndw.nu/api/v1/nwb/latest/mbtiles/roadSections/tiles/{z}/{x}/{y}.pbf"
+        ]
+      },
+      trafficSigns: {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: []
+        }
+      }
+    },
+    layers: [
+      {
+        id: "bg",
+        type: "raster",
+        source: "bg"
+      },
+      {
+        id: "roads",
+        type: "line",
+        source: "roads",
+        "source-layer": "roadSections",
+        paint: {
+          "line-color": "#007cff",
+          "line-width": 2
+        }
+      },
+      {
+        id: "trafficSigns",
+        type: "circle",
+        source: "trafficSigns",
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "#ff0000",
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#ffffff"
+        }
+      }
+    ]
+  },
+  center: [5.3, 52.1],
+  zoom: 7
+});
+
+map.addControl(new maplibregl.NavigationControl());
+
+/* =========================
+   DROPDOWN
+========================= */
+
+const select = document.getElementById("municipalitySelect");
+
+gemeenten.forEach(g => {
+  const opt = document.createElement("option");
+  opt.value = g.code;
+  opt.textContent = g.naam;
+  select.appendChild(opt);
+});
+
+/* =========================
+   LOAD SIGNS
+========================= */
+
+async function loadTrafficSigns(countyCode) {
+  const url = `https://data.ndw.nu/api/rest/static-road-data/traffic-signs/v4/current-state?countyCode=${countyCode}`;
+
+  const res = await fetch(url, {
+    headers: { "Accept": "application/geo+json" }
+  });
+
+  const data = await res.json();
+  map.getSource("trafficSigns").setData(data);
+}
+
+/* =========================
+   APPLY MUNICIPALITY
+========================= */
+
+function applyMunicipality() {
+  const code = select.value;
+  const gemeente = gemeenten.find(g => g.code === code);
+
+  if (!gemeente) return;
+
+  const countyCode = "GM" + code;
+
+  map.setFilter("roads", [
+    "==",
+    ["get", "municipalityName"],
+    gemeente.naam
+  ]);
+
+  map.fitBounds(gemeente.bounds, {
+    padding: 40,
+    duration: 800
+  });
+
+  loadTrafficSigns(countyCode);
+}
+
+/* =========================
+   POPUPS
+========================= */
+
+map.on("click", "trafficSigns", (e) => {
+  const p = e.features[0].properties;
+
+  let html = `<strong>Verkeersbord</strong><br><br>
+    <b>Type:</b> ${p.rvvCode || "-"}<br>
+    <b>Status:</b> ${p.status || "-"}<br>
+    <b>Weg:</b> ${p.roadName || "-"}<br>
+    <b>Gemeente:</b> ${p.countyName || "-"}<br>`;
+
+  if (p.imageUrl) {
+    html += `<img class="sign" src="${p.imageUrl}" />`;
+  }
+
+  new maplibregl.Popup()
+    .setLngLat(e.lngLat)
+    .setHTML(html)
+    .addTo(map);
+});
+
+/* =========================
+   START OP UTRECHT
+========================= */
+
+map.on("load", () => {
+
+  // zoek Utrecht
+  const utrecht = gemeenten.find(g => g.code === "0344");
+
+  if (utrecht) {
+    select.value = "0344";
+
+    map.setFilter("roads", [
+      "==",
+      ["get", "municipalityName"],
+      utrecht.naam
+    ]);
+
+    map.fitBounds(utrecht.bounds, {
+      padding: 40,
+      duration: 800
+    });
+
+    loadTrafficSigns("GM0344");
+  }
+
+});
+
+</script>
+
+</body>
+</html>

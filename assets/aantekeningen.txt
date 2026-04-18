@@ -1,0 +1,13 @@
+Toevoegen:
+    zoom for more features indicatie.
+    gemeente zoeken op input button.
+    Hoe lang onderweg indicatie op popup van isochroon wegen
+    zoom terug naar gemeente
+
+Maybe:
+    Alert met gebroken gemeente.
+    Uitleg site
+    Lightmode/darkmode
+    verkeersborden
+    Gemeente en omstreken
+    addressen

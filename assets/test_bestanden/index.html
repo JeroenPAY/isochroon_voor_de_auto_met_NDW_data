@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>NDW RVM – Gemeente viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,1" />
+
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; }
+    #map { width: 100%; height: 100%; }
+    .search-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(4px);
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      z-index: 1000;
+      width: 360px;
+      padding: 16px;
+      font-size: 13px;
+    }
+    .search-panel label { font-weight: 600; display: block; margin-bottom: 6px; }
+    .sub { font-size: 12px; color: #334155; margin-bottom: 12px; border-left: 3px solid #3b82f6; padding-left: 8px; }
+    .input-group { display: flex; gap: 8px; margin-bottom: 12px; }
+    #gemeenteInput { flex: 1; padding: 10px 12px; border-radius: 40px; border: 1px solid #cbd5e1; }
+    button { background: #1e293b; border: none; border-radius: 40px; padding: 8px 16px; font-weight: 600; color: white; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
+    button.primary { background: #c04f5a; }
+    button.primary:hover { background: #a23b45; }
+    button.secondary { background: #2c3e66; }
+    button.secondary:hover { background: #1e2a4a; }
+    button.toggle-btn { background: #4a6741; }
+    button.toggle-btn.active { background: #c04f5a; }
+    button.toggle-btn:hover { background: #3a5532; }
+    .btn-row { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+    .material-symbols-outlined { font-size: 18px; }
+    .status-msg { position: absolute; bottom: 20px; left: 20px; background: #0f172ad9; color: white; padding: 8px 18px; border-radius: 40px; font-size: 12px; z-index: 1000; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+    .legend { position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.75); color: white; padding: 8px 14px; border-radius: 24px; font-size: 11px; z-index: 1000; display: flex; gap: 16px; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="search-panel">
+  <label>NDW</label>
+  <label for="gemeenteInput">Gemeente:</label>
+  <div class="input-group">
+    <input type="text" id="gemeenteInput" list="gemeenteSuggesties" placeholder="Bijv: Helmond, Eindhoven..." autocomplete="off">
+    <datalist id="gemeenteSuggesties">
+      <option>Helmond</option><option>Eindhoven</option><option>Amsterdam</option><option>Rotterdam</option><option>Utrecht</option>
+      <option>Den Haag</option><option>Groningen</option><option>Tilburg</option><option>Breda</option><option>Nijmegen</option>
+    </datalist>
+  </div>
+  <div class="btn-row">
+    <button id="zoekGemeenteBtn" class="primary"><span class="material-symbols-outlined">search</span> Zoek</button>
+    <button id="toggleGrenzenBtn" class="toggle-btn active"><span class="material-symbols-outlined">layers</span> Verberg grenzen</button>
+    <button id="resetViewBtn" class="secondary"><span class="material-symbols-outlined">public</span> Heel NL</button>
+  </div>
+</div>
+<div id="statusMsg" class="status-msg">✅ Gereed</div>
+<div class="legend">
+  <span>🟠 NDW wegvakken</span>
+  <span>🟢 Gemeentegrenzen</span>
+  <span>📝 Gemeentelabels</span>
+</div>
+
+<script src="map-init.js"></script>
+<script src="gemeente-selector.js"></script>
+</body>
+</html>

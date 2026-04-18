@@ -1,13 +1,10 @@
+// data/js/script.js - Vereenvoudigde versie: alleen isochroon functionaliteit
 let map;
 let currentBasemap = 'pdok-grijs';
 
 function initMap(center, zoom) {
     console.log("[Script] Initialiseer map...");
-    
-    const loadingStartTime = Date.now();
-
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.style.display = 'flex';
+    window.utils?.showLoading();
     
     map = new maplibregl.Map({
         container: "map",
@@ -21,40 +18,26 @@ function initMap(center, zoom) {
 
     map.once("load", () => {
         console.log("[Script] Map geladen");
-
-        const elapsed = Date.now() - loadingStartTime;
-        const minTime = 2000;
-        const delay = Math.max(0, minTime - elapsed);
-
-        setTimeout(() => {
-            const overlay = document.getElementById('loading-overlay');
-            if (overlay) overlay.style.display = 'none';
-        }, delay);
+        window.utils?.hideLoading();
         
+        // Setup functies
         setupMapFeatures();
         
-        if (window.initGemeenteSelector) {
-            window.initGemeenteSelector(map);
-        }
-        
+        // Laad initiële data
         window.GemeenteManager?.loadGemeenteData('0794');
+        
+        // Positioneer sidebar
         setTimeout(positionSidebar, 500);
     });
     
     map.on('error', e => console.error('[Script] MapLibre error:', e.error));
     
-    // Failsafe (BELANGRIJK)
-    setTimeout(() => {
-        console.warn("[Script] Fallback loading hide");
-        const overlay = document.getElementById('loading-overlay');
-        if (overlay) overlay.style.display = 'none';
-    }, 5000);
+    setTimeout(() => window.utils?.hideLoading(), 5000);
 }
 
 function getMapStyle() {
     return {
         "version": 8,
-        "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",  // <-- DIT IS CRUCIAAL VOOR LABELS!
         "sources": {
             "pdok-grijs": { 
                 "type": "raster", 
@@ -101,7 +84,7 @@ function getMapStyle() {
                     "raster-contrast": 0.5,
                     "raster-saturation": 0.0
                 },
-                "layout": { "visibility": "none" }
+                "layout": { "visibility": "none" } // standaard verborgen
             },
             { 
                 "id": "rvm-lines", 
@@ -109,6 +92,7 @@ function getMapStyle() {
                 "source": "rvm_segments", 
                 "source-layer": "roadSections", 
                 "paint": { 
+                    // ALLE wegen krijgen dezelfde kleur: rgba(11, 11, 11, 1)
                     "line-color": "rgba(11, 11, 11, 1)",
                     "line-width": 2.5,
                     "line-opacity": 0.8
@@ -120,12 +104,11 @@ function getMapStyle() {
 }
 
 function setupMapFeatures() {
-    window.setupLegendControls?.(map);
-    
+       window.setupLegendControls?.(map);
     // Controls
     map.addControl(new maplibregl.NavigationControl({
-        showCompass: false,
-        showZoom: true
+        showCompass: false,   // geen kompas
+        showZoom: true        // alleen zoom knoppen
     }), 'bottom-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true }));
     
@@ -196,16 +179,6 @@ function setupGemeenteEventListeners() {
         }
     });
     
-    // Event voor wanneer gemeenten geladen zijn
-    document.addEventListener('gemeentenLoaded', (e) => {
-        console.log(`[Script] ${e.detail.count} gemeenten geladen op de kaart`);
-        window.utils?.showNotification(
-            `${e.detail.count} gemeenten geladen`,
-            'success',
-            2000
-        );
-    });
-    
     // Isochroon events
     document.addEventListener('isochroonCalculated', (e) => {
         const { success, edges } = e.detail;
@@ -218,16 +191,18 @@ function setupGemeenteEventListeners() {
         }
     });
     
-    // Node selected
+    // Node selected (alleen voor isochroon)
     document.addEventListener('nodeSelected', (e) => {
         const { nodeId, inputField, coordinates } = e.detail;
         console.log(`[Script] Node ${nodeId} geselecteerd voor ${inputField}`);
         
+        // Vul het isochroon start veld in
         const isochroonInput = document.getElementById('isochroonStartNode');
         if (isochroonInput && inputField === 'isochroonStartNode') {
             isochroonInput.value = nodeId;
         }
         
+        // Zoom naar de geselecteerde node
         if (coordinates && map) {
             map.flyTo({
                 center: coordinates,
@@ -259,7 +234,7 @@ function updateGemeenteFeatures(gemeenteNaam) {
     // Update sidebar
     window.CalculationsSidebar?.updateForGemeente(gemeenteNaam);
     
-    // Clear isochroon
+    // Clear isochroon als er een actieve is
     if (window.IsochroonCalculator?.getCurrentIsochroon()) {
         console.log("[Script] Wis isochroon bij gemeentewissel");
         window.IsochroonCalculator.clearIsochroonFromMap(map);
@@ -329,7 +304,7 @@ function createIsochroonButton(buttonText) {
     button.style.cssText = `
         margin-left: 8px;
         padding: 6px 12px;
-        background-color: #377d39;
+        background-color: #4CAF50;
         color: white;
         border: none;
         border-radius: 4px;
@@ -341,8 +316,8 @@ function createIsochroonButton(buttonText) {
         transition: background-color 0.2s;
     `;
     
-    button.addEventListener('mouseenter', () => button.style.backgroundColor = '#2e672f');
-    button.addEventListener('mouseleave', () => button.style.backgroundColor = '#377d39');
+    button.addEventListener('mouseenter', () => button.style.backgroundColor = '#45a049');
+    button.addEventListener('mouseleave', () => button.style.backgroundColor = '#4CAF50');
     
     button.addEventListener('click', (e) => {
         e.preventDefault();
@@ -379,10 +354,7 @@ function createIsochroonButton(buttonText) {
 document.addEventListener("DOMContentLoaded", () => {
     console.log("[Script] DOM geladen");
     
-    // Wacht even om zeker te zijn dat alle scripts geladen zijn
-    setTimeout(() => {
-        window.GemeenteManager?.setupGemeenteInput();
-    }, 100);
+    window.GemeenteManager?.setupGemeenteInput();
     
     initMap();
     
@@ -392,6 +364,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 250));
 });
 
+// Utility functies
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -418,6 +391,7 @@ window.addEventListener('error', e => {
     window.utils?.showNotification(`Er is een fout opgetreden: ${e.message}`, 'error', 5000);
 });
 
+// Herinitialiseer bij netwerk herstel
 window.addEventListener('online', () => {
     console.log("[Script] Netwerk hersteld");
     
@@ -427,5 +401,9 @@ window.addEventListener('online', () => {
     }
 });
 
+
+
+
+// Exporteer functies
 window.initMap = initMap;
 window.positionSidebar = positionSidebar;
