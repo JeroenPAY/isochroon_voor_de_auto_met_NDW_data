@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>NDW RVM – Gemeente viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    #searchBox {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      background: white;
+      padding: 12px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      z-index: 1000;
+      font-size: 13px;
+      width: 240px;
+    }
+
+    #searchBox label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    #searchBox input {
+      width: 100%;
+      padding: 6px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      margin-bottom: 8px;
+    }
+
+    #searchBox button {
+      width: 100%;
+      padding: 6px;
+      border: none;
+      background: #007cff;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="searchBox">
+  <label for="municipalityInput">Gemeente</label>
+  <input id="municipalityInput" type="text" value="Helmond">
+  <button onclick="applyMunicipality()">Toon gemeente</button>
+</div>
+
+<script>
+  const map = new maplibregl.Map({
+    container: "map",
+    style: {
+      version: 8,
+      sources: {
+        satellite: {
+          type: "raster",
+          tiles: [
+            "https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png"
+          ],
+          tileSize: 256
+        },
+        rvm_segments: {
+          type: "vector",
+          tiles: [
+            "https://maps.ndw.nu/api/v1/nwb/latest/mbtiles/roadSections/tiles/{z}/{x}/{y}.pbf"
+          ]
+        }
+      },
+      layers: [
+        {
+          id: "background",
+          type: "raster",
+          source: "satellite",
+          paint: {
+            "raster-opacity": 0.9,
+            "raster-saturation": -0.8
+          }
+        },
+        {
+          id: "rvm-lines",
+          type: "line",
+          source: "rvm_segments",
+          "source-layer": "roadSections",
+          paint: {
+            "line-color": "#007cff",
+            "line-width": 2
+          },
+          filter: ["==", ["get", "municipalityName"], "Helmond"]
+        }
+      ]
+    },
+    center: [5.66, 51.47],
+    zoom: 12
+  });
+
+  map.addControl(new maplibregl.NavigationControl());
+
+  function applyMunicipality() {
+    const name = document.getElementById("municipalityInput").value.trim();
+    if (!name) return;
+
+    // Stap 1: grof uitzoomen naar NL om tiles te laden
+    map.flyTo({
+      center: [5.3, 52.1],
+      zoom: 7,
+      speed: 1.2
+    });
+
+    // Stap 2: wachten tot tiles geladen zijn
+    map.once("idle", () => {
+      map.setFilter("rvm-lines", [
+        "==",
+        ["get", "municipalityName"],
+        name
+      ]);
+
+      zoomToMunicipality(name);
+    });
+  }
+
+  function zoomToMunicipality(name) {
+    map.once("idle", () => {
+      const features = map.querySourceFeatures("rvm_segments", {
+        sourceLayer: "roadSections",
+        filter: ["==", ["get", "municipalityName"], name]
+      });
+
+      if (!features.length) {
+        alert("Geen wegvakken gevonden voor deze gemeente.");
+        return;
+      }
+
+      let minX = Infinity, minY = Infinity;
+      let maxX = -Infinity, maxY = -Infinity;
+
+      features.forEach(f => {
+        const geom = f.geometry;
+
+        if (geom.type === "LineString") {
+          geom.coordinates.forEach(c => expand(c));
+        } else if (geom.type === "MultiLineString") {
+          geom.coordinates.flat().forEach(c => expand(c));
+        }
+      });
+
+      function expand([x, y]) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+
+      map.fitBounds(
+        [[minX, minY], [maxX, maxY]],
+        {
+          padding: 40,
+          duration: 800
+        }
+      );
+    });
+  }
+
+  map.on("click", "rvm-lines", (e) => {
+    const p = e.features[0].properties;
+    let html = "<strong>RVM wegvak</strong><br><br>";
+
+    ["roadSectionId", "municipalityName", "drivingDirection", "carriagewayTypeCode"]
+      .forEach(key => {
+        if (p[key]) {
+          html += `<strong>${key}:</strong> ${p[key]}<br>`;
+        }
+      });
+
+    new maplibregl.Popup()
+      .setLngLat(e.lngLat)
+      .setHTML(html)
+      .addTo(map);
+  });
+
+  map.on("mouseenter", "rvm-lines", () => {
+    map.getCanvas().style.cursor = "pointer";
+  });
+
+  map.on("mouseleave", "rvm-lines", () => {
+    map.getCanvas().style.cursor = "";
+  });
+</script>
+
+</body>
+</html>

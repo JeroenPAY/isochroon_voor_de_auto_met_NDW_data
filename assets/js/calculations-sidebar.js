@@ -1,8 +1,7 @@
 // data/js/calculations-sidebar.js
-// Sidebar management voor isochroon berekeningen (alleen tijd in minuten)
-
 const CalculationsSidebar = (function() {
     let sidebarInitialized = false;
+    let mapInstance = null;
     
     const elementIds = {
         sidebar: 'calculationsSidebar',
@@ -33,9 +32,9 @@ const CalculationsSidebar = (function() {
     
     function setupHandlers() {
         const handlers = {
-            [elementIds.isochroon.calculate]: handleCalculateIsochroon,
-            [elementIds.isochroon.clear]: handleClearIsochroon,
-            [elementIds.isochroon.visibility]: handleIsochroonVisibility
+            [elementIds.isochroon.calculate]: () => handleCalculateIsochroon(),
+            [elementIds.isochroon.clear]: () => handleClearIsochroon(),
+            [elementIds.isochroon.visibility]: () => handleIsochroonVisibility()
         };
         
         Object.entries(handlers).forEach(([id, handler]) => {
@@ -43,7 +42,6 @@ const CalculationsSidebar = (function() {
             if (element) element.addEventListener('click', handler);
         });
         
-        // Enter handlers voor isochroon
         [elementIds.isochroon.start, elementIds.isochroon.limitValue].forEach(id => {
             getElement(id)?.addEventListener('keypress', e => {
                 if (e.key === 'Enter') { 
@@ -53,14 +51,12 @@ const CalculationsSidebar = (function() {
             });
         });
         
-        // Toon startpunt bij input change
-        getElement(elementIds.isochroon.start)?.addEventListener('input', handleIsochroonStartInput);
+        getElement(elementIds.isochroon.start)?.addEventListener('input', () => handleIsochroonStartInput());
         
-        // LUISTER NAAR GEMEENTE WIJZIGINGEN OM START PUNT TE WISSEN
         setupGemeenteChangeListener();
+        setupNodeSelectorListener();
     }
     
-    // NIEUW: Luister naar gemeente wijzigingen
     function setupGemeenteChangeListener() {
         document.addEventListener('gemeenteChanged', () => {
             console.log('[CalculationsSidebar] Gemeente gewijzigd - startpunt wissen');
@@ -73,60 +69,92 @@ const CalculationsSidebar = (function() {
         });
     }
     
-    // NIEUW: Wis startpunt en isochroon bij gemeente wissel
+    function setupNodeSelectorListener() {
+        document.addEventListener('nodeSelected', (e) => {
+            const { nodeId, inputField, coordinates } = e.detail;
+            console.log(`[CalculationsSidebar] Node ${nodeId} geselecteerd voor ${inputField}`);
+            
+            if (inputField === 'isochroonStartNode') {
+                const startInput = getElement(elementIds.isochroon.start);
+                if (startInput) {
+                    startInput.value = nodeId;
+                    handleIsochroonStartInput();
+                }
+            }
+            
+            if (coordinates && mapInstance) {
+                mapInstance.flyTo({
+                    center: coordinates,
+                    zoom: 15,
+                    duration: 1000
+                });
+            }
+        });
+    }
+    
     function clearStartPointAndIsochroon() {
-        // Wis het startpunt input veld
         const startInput = getElement(elementIds.isochroon.start);
-        if (startInput) {
-            startInput.value = '';
-        }
+        if (startInput) startInput.value = '';
         
-        // Reset tijdlimiet naar standaardwaarde (optioneel)
         const limitInput = getElement(elementIds.isochroon.limitValue);
-        if (limitInput) {
-            limitInput.value = '2.5';
-        }
+        if (limitInput) limitInput.value = '2.5';
         
-        // Reset resultaatmelding
         showResult(getElement(elementIds.isochroon.result), 
                    "Vul startnode en tijdlimiet (minuten) in om bereikbaar gebied te berekenen.", 
                    'info');
         
-        // Verwijder startpunt van kaart
         hideStartPointFromMap();
         
-        // Verwijder isochroon van kaart
-        if (window.IsochroonCalculator && window.map) {
-            if (typeof window.IsochroonCalculator.clearIsochroonFromMap === 'function') {
-                window.IsochroonCalculator.clearIsochroonFromMap(window.map);
-            } else if (typeof window.IsochroonCalculator.clearIsochroon === 'function') {
-                window.IsochroonCalculator.clearIsochroon();
-            }
+        if (window.IsochroonCalculator && mapInstance) {
+            window.IsochroonCalculator.clearIsochroonFromMap(mapInstance);
         }
         
-        // Update visibility icon
         updateVisibilityIcon(true);
-        
-        // Stuur clear event
         document.dispatchEvent(new CustomEvent('isochroonCleared'));
     }
     
-    function init() {
-        if (sidebarInitialized || !getElement(elementIds.sidebar)) return;
+    function init(map) {
+        if (sidebarInitialized) return;
+        mapInstance = map;
         
-        // Collapse/expand functionaliteit
+        if (!getElement(elementIds.sidebar)) {
+            console.warn("[CalculationsSidebar] Sidebar element niet gevonden");
+            return;
+        }
+        
+        setupCollapseExpand();
+        setupTabs();
+        setupHandlers();
+        removeObsoleteElements();
+        showOnlyIsochroonTab();
+        initializeDefaultValues();
+        setupIsochroonStartButton();
+        
+        // Initialiseer isochroon calculator
+        if (window.IsochroonCalculator) {
+            window.IsochroonCalculator.init();
+            window.IsochroonCalculator.setMap(mapInstance);
+        }
+        
+        sidebarInitialized = true;
+        console.log("[CalculationsSidebar] Geïnitialiseerd");
+    }
+    
+    function setupCollapseExpand() {
         document.querySelector('.calculations-sidebar-title')?.addEventListener('click', () => {
             const sidebar = getElement(elementIds.sidebar);
             sidebar.classList.toggle('collapsed');
             const toggleIcon = document.querySelector(elementIds.toggleIcon);
-            if (toggleIcon) toggleIcon.textContent = sidebar.classList.contains('collapsed') ? 'expand_less' : 'expand_more';
+            if (toggleIcon) {
+                toggleIcon.textContent = sidebar.classList.contains('collapsed') ? 'expand_less' : 'expand_more';
+            }
         });
-        
-        // Tab functionaliteit (nu alleen isochroon tab)
+    }
+    
+    function setupTabs() {
         document.querySelectorAll(elementIds.tabs).forEach(tab => {
             tab.addEventListener('click', () => {
                 const tabId = tab.dataset.tab;
-                // Alleen isochroon tab laten werken
                 if (tabId !== 'isochroon') return;
                 
                 document.querySelectorAll(elementIds.tabs).forEach(t => t.classList.remove('active'));
@@ -137,69 +165,102 @@ const CalculationsSidebar = (function() {
                 });
             });
         });
-        
-        setupHandlers();
-        
-        // Verwijder overbodige HTML elementen
-        removeObsoleteElements();
-        
-        sidebarInitialized = true;
-        
-        // Toon alleen isochroon tab
-        showOnlyIsochroonTab();
-        
-        // Stel standaardwaarde in voor tijdlimiet
-        initializeDefaultValues();
     }
     
     function removeObsoleteElements() {
-        // Verwijder limitType select
         const limitTypeSelect = document.getElementById('limitType');
-        if (limitTypeSelect) {
-            limitTypeSelect.parentNode?.removeChild(limitTypeSelect.parentNode);
-        }
+        if (limitTypeSelect) limitTypeSelect.parentNode?.removeChild(limitTypeSelect.parentNode);
         
-        // Verwijder transport select
         const transportSelect = document.getElementById('transport');
-        if (transportSelect) {
-            transportSelect.parentNode?.removeChild(transportSelect.parentNode);
-        }
+        if (transportSelect) transportSelect.parentNode?.removeChild(transportSelect.parentNode);
         
-        // Verwijder bijbehorende labels
         document.querySelectorAll('label[for="limitType"], label[for="transport"]').forEach(label => {
             label.parentNode?.removeChild(label.parentNode);
         });
-        
-        console.log("[CalculationsSidebar] Overbodige form elementen verwijderd");
     }
     
     function showOnlyIsochroonTab() {
-        // Verberg route tab
         const routeTab = document.querySelector('[data-tab="route"]');
         if (routeTab) routeTab.style.display = 'none';
         
         const routeTabContent = document.getElementById('routeTab');
         if (routeTabContent) routeTabContent.style.display = 'none';
         
-        // Zorg dat isochroon tab actief is
         const isochroonTab = document.querySelector('[data-tab="isochroon"]');
-        if (isochroonTab) {
-            isochroonTab.classList.add('active');
-        }
+        if (isochroonTab) isochroonTab.classList.add('active');
         
         const isochroonTabContent = document.getElementById('isochroonTab');
-        if (isochroonTabContent) {
-            isochroonTabContent.classList.add('active');
-        }
+        if (isochroonTabContent) isochroonTabContent.classList.add('active');
     }
     
     function initializeDefaultValues() {
-        // Stel standaard tijdlimiet in (5 minuten)
         const limitInput = getElement(elementIds.isochroon.limitValue);
         if (limitInput) {
             limitInput.value = '2.5';
             limitInput.placeholder = 'minuten';
         }
+    }
+    
+    function setupIsochroonStartButton() {
+        setTimeout(() => {
+            const input = document.getElementById('isochroonStartNode');
+            if (!input) {
+                console.error("[CalculationsSidebar] isochroonStartNode input niet gevonden!");
+                return;
+            }
+            
+            const button = createIsochroonButton('Kies startpunt');
+            input.parentNode.insertBefore(button, input.nextSibling);
+            console.log("[CalculationsSidebar] Isochroon start knop toegevoegd");
+        }, 1000);
+    }
+    
+    function createIsochroonButton(buttonText) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'isochroon-select-button';
+        button.innerHTML = `
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">location_on</span>
+            ${buttonText}
+        `;
+        button.style.cssText = `
+            margin-left: 8px;
+            padding: 6px 12px;
+            background-color: #377d39;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: background-color 0.2s;
+        `;
+        
+        button.addEventListener('mouseenter', () => button.style.backgroundColor = '#2e672f');
+        button.addEventListener('mouseleave', () => button.style.backgroundColor = '#377d39');
+        
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            console.log(`[CalculationsSidebar] Startpunt selectie voor isochroon`);
+            
+            if (window.NodeSelector) {
+                window.NodeSelector.setMode('isochroon', 'isochroonStartNode');
+                const nodesVisible = window.NodeSelector.toggleNodes('isochroonStartNode');
+                
+                if (!nodesVisible) {
+                    window.utils?.showNotification('Geen startpunten beschikbaar voor huidige gemeente', 'warning', 3000);
+                }
+            } else {
+                console.error('[CalculationsSidebar] NodeSelector niet beschikbaar');
+                window.utils?.showNotification('Startpunt selector functionaliteit niet beschikbaar', 'error', 3000);
+            }
+        });
+        
+        return button;
     }
     
     function handleIsochroonStartInput() {
@@ -208,19 +269,16 @@ const CalculationsSidebar = (function() {
         
         const nodeId = startInput.value.trim();
         if (nodeId && !isNaN(Number(nodeId))) {
-            // Toon startpunt op kaart
             showStartPointOnMap(Number(nodeId));
         } else {
-            // Verwijder startpunt als input leeg is
             hideStartPointFromMap();
         }
     }
     
     function handleCalculateIsochroon() {
-        const ids = elementIds.isochroon;
-        const start = getElement(ids.start)?.value.trim();
-        const limitValue = getElement(ids.limitValue)?.value.trim();
-        const resultDiv = getElement(ids.result);
+        const start = getElement(elementIds.isochroon.start)?.value.trim();
+        const limitValue = getElement(elementIds.isochroon.limitValue)?.value.trim();
+        const resultDiv = getElement(elementIds.isochroon.result);
         
         if (!start || !limitValue) {
             showResult(resultDiv, "Voer een startnode ID en tijdlimiet in.", 'error');
@@ -250,87 +308,56 @@ const CalculationsSidebar = (function() {
         const resultHTML = createIsochroonResultHTML(start, numericLimit, result);
         showResult(resultDiv, resultHTML, 'success');
         
-        if (window.map && result.edges.length > 0) {
+        if (mapInstance && result.edges.length > 0) {
             ensureIsochroonVisibility();
-            
-            // ROEP DE NIEUWE FUNCTIE AAN MET DE TIJD LIMIET
-            window.IsochroonCalculator.showIsochroonOnMap(result.edges, window.map, numericLimit);
+            window.IsochroonCalculator.showIsochroonOnMap(result.edges, mapInstance, numericLimit);
         }
         
-        // Stuur event met nieuwe data structuur
         document.dispatchEvent(new CustomEvent('isochroonCalculated', {
-            detail: { 
-                success: true, 
-                edges: result.edges,
-                stats: result.stats
-            }
+            detail: { success: true, edges: result.edges, stats: result.stats }
         }));
         
-        showNotification(`${result.edges.length} wegen bereikbaar binnen ${numericLimit} minuten`, 'success');
-        switchToTab('isochroon');
+        window.utils?.showNotification(`${result.edges.length} wegen bereikbaar binnen ${numericLimit} minuten`, 'success');
     }
     
     function handleClearIsochroon() {
-        // Wis de inputs
         getElement(elementIds.isochroon.start).value = '';
         getElement(elementIds.isochroon.limitValue).value = '2.5';
         
-        // Reset resultaatmelding
         showResult(getElement(elementIds.isochroon.result), 
                    "Vul startnode en tijdlimiet (minuten) in om bereikbaar gebied te berekenen.", 
                    'info');
         
-        // Verwijder startpunt van kaart
         hideStartPointFromMap();
         
-        // BELANGRIJK: Roep de correcte functie aan om isochroon te verwijderen
-        // Controleer eerst of de calculator bestaat
-        if (window.IsochroonCalculator && window.map) {
-            // Gebruik de nieuwe clear functie
-            if (typeof window.IsochroonCalculator.clearIsochroonFromMap === 'function') {
-                window.IsochroonCalculator.clearIsochroonFromMap(window.map);
-            } 
-            // Fallback voor oude versie
-            else if (typeof window.IsochroonCalculator.clearIsochroon === 'function') {
-                window.IsochroonCalculator.clearIsochroon();
-            }
+        if (window.IsochroonCalculator && mapInstance) {
+            window.IsochroonCalculator.clearIsochroonFromMap(mapInstance);
         }
         
-        showNotification("Isochroon gewist", 'info');
-        
-        // Stuur clear event
+        window.utils?.showNotification("Isochroon gewist", 'info');
         document.dispatchEvent(new CustomEvent('isochroonCleared'));
     }
     
     function handleIsochroonVisibility() {
-        if (!window.IsochroonCalculator || !window.map) return;
-        
-        // Controleer of de nieuwe toggle functie bestaat
-        if (typeof window.IsochroonCalculator.toggleIsochroonVisibility === 'function') {
-            const isVisible = window.IsochroonCalculator.toggleIsochroonVisibility(window.map);
-            updateVisibilityIcon(isVisible);
-        }
+        if (!window.IsochroonCalculator || !mapInstance) return;
+        const isVisible = window.IsochroonCalculator.toggleIsochroonVisibility(mapInstance);
+        updateVisibilityIcon(isVisible);
     }
     
     function updateVisibilityIcon(isVisible) {
         const icon = document.querySelector('.isochroon-visibility-icon');
         const text = document.querySelector('.isochroon-visibility-text');
         
-        if (icon) {
-            icon.textContent = isVisible ? 'visibility' : 'visibility_off';
-        }
-        if (text) {
-            text.textContent = isVisible ? 'Isochroon weergeven' : 'Isochroon verbergen';
-        }
+        if (icon) icon.textContent = isVisible ? 'visibility' : 'visibility_off';
+        if (text) text.textContent = isVisible ? 'Isochroon weergeven' : 'Isochroon verbergen';
     }
     
-    // functie om isochroon zichtbaar te maken als het uit staat
     function ensureIsochroonVisibility() {
-        if (!window.IsochroonCalculator || !window.map) return;
+        if (!window.IsochroonCalculator || !mapInstance) return;
         
         if (typeof window.IsochroonCalculator.isIsochroonVisible === 'function' && 
             !window.IsochroonCalculator.isIsochroonVisible()) {
-            window.IsochroonCalculator.toggleIsochroonVisibility(window.map);
+            window.IsochroonCalculator.toggleIsochroonVisibility(mapInstance);
             updateVisibilityIcon(true);
         }
     }
@@ -365,43 +392,31 @@ const CalculationsSidebar = (function() {
         return html;
     }
     
-    function switchToTab(tabName) {
-        // Alleen isochroon tab ondersteunen
-        if (tabName !== 'isochroon') return;
+    function showStartPointOnMap(nodeId) {
+        if (!mapInstance || !nodeId || !window.NodeSelector) return false;
         
-        document.querySelectorAll(elementIds.tabs).forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.tab === tabName);
-        });
-        document.querySelectorAll(elementIds.tabContents).forEach(content => {
-            content.classList.toggle('active', content.id === `${tabName}Tab`);
-        });
-    }
-    
-    function showPointOnMap(nodeId, sourceId, layerId, labelId, color, labelText) {
-        if (!window.map || !nodeId || !window.NodeSelector) return false;
-        
-        hidePointFromMap([layerId, labelId], sourceId);
+        hideStartPointFromMap();
         
         const nodeData = window.NodeSelector.findNodeById(nodeId);
         if (!nodeData) return false;
         
         try {
-            window.map.addSource(sourceId, {
+            mapInstance.addSource('isochroon-start-point', {
                 type: 'geojson',
                 data: {
                     type: 'Feature',
-                    properties: { id: nodeId, label: labelText },
+                    properties: { id: nodeId, label: 'Startpunt' },
                     geometry: { type: 'Point', coordinates: nodeData.coordinates }
                 }
             });
             
-            window.map.addLayer({
-                id: layerId,
+            mapInstance.addLayer({
+                id: 'isochroon-start-point-layer',
                 type: 'circle',
-                source: sourceId,
+                source: 'isochroon-start-point',
                 paint: {
                     'circle-radius': 8,
-                    'circle-color': color,
+                    'circle-color': '#FFD700',
                     'circle-stroke-width': 3,
                     'circle-stroke-color': '#000000',
                     'circle-opacity': 0.9,
@@ -409,12 +424,12 @@ const CalculationsSidebar = (function() {
                 }
             });
             
-            window.map.addLayer({
-                id: labelId,
+            mapInstance.addLayer({
+                id: 'isochroon-start-point-label',
                 type: 'symbol',
-                source: sourceId,
+                source: 'isochroon-start-point',
                 layout: {
-                    'text-field': labelText,
+                    'text-field': 'Startpunt',
                     'text-font': ['Open Sans Bold'],
                     'text-size': 12,
                     'text-offset': [0, -2],
@@ -429,68 +444,42 @@ const CalculationsSidebar = (function() {
             
             return true;
         } catch (error) {
-            console.error('[CalculationsSidebar] Fout bij tonen punt:', error);
+            console.error('[CalculationsSidebar] Fout bij tonen startpunt:', error);
             return false;
         }
     }
     
-    function hidePointFromMap(layers, sourceId) {
-        if (!window.map) return;
-        layers.forEach(layerId => {
-            if (window.map.getLayer(layerId)) window.map.removeLayer(layerId);
-        });
-        if (window.map.getSource(sourceId)) window.map.removeSource(sourceId);
-    }
-    
-    function showStartPointOnMap(nodeId) {
-        return showPointOnMap(nodeId, 'isochroon-start-point', 'isochroon-start-point-layer', 
-                            'isochroon-start-point-label', '#FFD700', `Startpunt`);
-    }
-    
     function hideStartPointFromMap() {
-        hidePointFromMap(['isochroon-start-point-label', 'isochroon-start-point-layer'], 'isochroon-start-point');
-    }
-    
-    function toggleVisibility(iconSelector, textSelector, calculator, name) {
-        const icon = document.querySelector(iconSelector);
-        const text = document.querySelector(textSelector);
-        if (!icon || !text || !calculator || !window.map) return;
-        
-        let newVisibility;
-        if (name === 'Isochroon' && typeof calculator.toggleIsochroonVisibility === 'function') {
-            newVisibility = calculator.toggleIsochroonVisibility(window.map);
-        } else return;
-        
-        icon.textContent = newVisibility ? 'visibility' : 'visibility_off';
-        text.textContent = newVisibility ? `${name} weergeven` : `${name} verbergen`;
-    }
-    
-    function showNotification(message, type) {
-        window.utils?.showNotification?.(message, type);
+        if (!mapInstance) return;
+        try {
+            if (mapInstance.getLayer('isochroon-start-point-label')) mapInstance.removeLayer('isochroon-start-point-label');
+            if (mapInstance.getLayer('isochroon-start-point-layer')) mapInstance.removeLayer('isochroon-start-point-layer');
+            if (mapInstance.getSource('isochroon-start-point')) mapInstance.removeSource('isochroon-start-point');
+        } catch(e) {}
     }
     
     function updateForGemeente(gemeenteNaam) {
-        const isEnabled = true;
+        const isEnabled = gemeenteNaam === 'Helmond';
         Object.values(elementIds.isochroon).forEach(id => {
             const element = getElement(id);
-            if (element) element.toggleAttribute('disabled', !isEnabled);
+            if (element) element.disabled = !isEnabled;
         });
         
         if (!isEnabled) {
-            showResult(getElement(elementIds.isochroon.result), 'Isochroonberekening momenteel alleen beschikbaar voor Helmond');
+            showResult(getElement(elementIds.isochroon.result), 
+                      'Isochroonberekening momenteel alleen beschikbaar voor Helmond', 'warning');
+        } else {
+            showResult(getElement(elementIds.isochroon.result), 
+                      "Vul startnode en tijdlimiet (minuten) in om bereikbaar gebied te berekenen.", 'info');
         }
     }
     
     return {
         init,
-        switchToTab,
         updateForGemeente,
-        showStartPointOnMap,
-        hideStartPointFromMap,
-        ensureIsochroonVisibility,
-        clearStartPointAndIsochroon  // Exporteer voor externe calls
+        clearStartPointAndIsochroon,
+        getMap: () => mapInstance
     };
 })();
 
 window.CalculationsSidebar = CalculationsSidebar;
-document.addEventListener('DOMContentLoaded', CalculationsSidebar.init);

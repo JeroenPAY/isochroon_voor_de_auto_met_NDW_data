@@ -1,6 +1,10 @@
 // data/js/isochroon-calculator.js
 const IsochroonCalculator = (function () {
-    let graph = null, currentIsochroon = null, isochroonVisible = true, reachableEdges = new Map();
+    let graph = null;
+    let currentIsochroon = null;
+    let isochroonVisible = true;
+    let reachableEdges = new Map();
+    let mapInstance = null;
 
     const helpers = {
         getRoadCostData: (d) => d || window.GemeenteManager?.getData('roadCost') || window.roadCost,
@@ -37,6 +41,10 @@ const IsochroonCalculator = (function () {
         graph = buildGraph(data);
         return !!(graph && graph.size > 0);
     }
+    
+    function setMap(map) {
+        mapInstance = map;
+    }
  
     function calculateIsochroon(start, timeLimitMinutes) {
         if (!graph?.size) return error("Geen netwerkdata geladen.");
@@ -46,19 +54,12 @@ const IsochroonCalculator = (function () {
         const timeLimitSeconds = helpers.minutesToSeconds(timeLimitMinutes);
         reachableEdges = new Map();
         
-        // Voor isochronen willen we ALLE edges binnen bereik, niet alleen nodes
-        // We gebruiken een priority queue, maar accepteren ALLE paden binnen de limiet
         const minTimesToNodes = new Map([[start, 0]]);
-        const queue = [{ node: start, cost: 0, path: [] }];
         
-        console.log(`[IsochroonCalculator] Start isochroon berekening: node ${start}, limit ${timeLimitSeconds}s`);
-        
-        // Minimal priority queue implementatie (efficiënter dan sorteren)
         const priorityQueue = {
             items: [],
             enqueue: function(item) {
                 this.items.push(item);
-                // Bubble up
                 let i = this.items.length - 1;
                 while (i > 0 && this.items[i].cost < this.items[Math.floor((i-1)/2)].cost) {
                     const parent = Math.floor((i-1)/2);
@@ -72,7 +73,6 @@ const IsochroonCalculator = (function () {
                 const last = this.items.pop();
                 if (this.items.length > 0) {
                     this.items[0] = last;
-                    // Bubble down
                     let i = 0;
                     while (true) {
                         const left = 2*i + 1;
@@ -98,13 +98,13 @@ const IsochroonCalculator = (function () {
             }
         };
         
-        // Start queue
+        console.log(`[IsochroonCalculator] Start isochroon berekening: node ${start}, limit ${timeLimitSeconds}s`);
+        
         priorityQueue.enqueue({ node: start, cost: 0 });
 
         while (!priorityQueue.isEmpty()) {
             const { node, cost: currentCost } = priorityQueue.dequeue();
             
-            // Skip als we al een betere route naar deze node hebben gevonden
             const bestTimeToNode = minTimesToNodes.get(node);
             if (bestTimeToNode !== undefined && currentCost > bestTimeToNode) {
                 continue;
@@ -115,25 +115,16 @@ const IsochroonCalculator = (function () {
             for (const edge of neighbors) {
                 const newCost = currentCost + edge.cost;
                 
-                // Controleer of we binnen de tijdslimiet blijven
                 if (newCost > timeLimitSeconds) continue;
                 
-                // Voor isochronen: gebruik < in plaats van <= om ALLE routes te verkennen
-                // Maar we moeten cycli voorkomen - we accepteren alleen betere tijden
                 const existingBestTime = minTimesToNodes.get(edge.to);
                 if (existingBestTime === undefined || newCost < existingBestTime) {
-                    // Update de beste tijd naar deze node
                     minTimesToNodes.set(edge.to, newCost);
-                    
-                    // Voeg toe aan queue voor verdere exploratie
                     priorityQueue.enqueue({ node: edge.to, cost: newCost });
                 }
                 
-                // VOOR ISOCHRONEN: Bewaar ALLE edges die binnen de limiet zijn
-                // Dit is het belangrijkste verschil met Dijkstra!
                 const edgeKey = `${edge.edgeId}_${edge.direction || 'forward'}_${node}_${edge.to}`;
                 
-                // We willen de MINIMALE tijd om deze edge te bereiken
                 if (!reachableEdges.has(edgeKey) || newCost - edge.cost < reachableEdges.get(edgeKey).startTime) {
                     reachableEdges.set(edgeKey, {
                         edgeId: edge.edgeId,
@@ -144,13 +135,12 @@ const IsochroonCalculator = (function () {
                         target: edge.to,
                         direction: edge.direction || 'forward',
                         agg_cost: newCost,
-                        startTime: newCost - edge.cost, // Tijd wanneer we deze edge betraden
-                        endTime: newCost // Tijd wanneer we deze edge verlieten
+                        startTime: newCost - edge.cost,
+                        endTime: newCost
                     });
                 }
             }
             
-            // Veiligheidslimiet om oneindige loops te voorkomen
             if (reachableEdges.size > 50000) {
                 console.warn("[IsochroonCalculator] Veel edges gevonden, break preventie");
                 break;
@@ -168,7 +158,6 @@ const IsochroonCalculator = (function () {
         };
 
         console.log(`[IsochroonCalculator] ${edges.length} edges binnen ${timeLimitMinutes} min, ${minTimesToNodes.size} nodes bezocht`);
-        console.log(`[IsochroonCalculator] Tijdbereik edges: ${Math.min(...edges.map(e => e.time_seconds)).toFixed(0)}s - ${Math.max(...edges.map(e => e.time_seconds)).toFixed(0)}s`);
         
         return {
             success: true, 
@@ -184,7 +173,6 @@ const IsochroonCalculator = (function () {
 
         const totalSeconds = edges.reduce((sum, e) => sum + e.time_seconds, 0);
         const maxSeconds = Math.max(...edges.map(e => e.time_seconds));
-        const minSeconds = Math.min(...edges.map(e => e.time_seconds));
         const coverage = graph ? `${Math.min(100, (nodeCount / graph.size * 100)).toFixed(1)}%` : "0%";
 
         return {
@@ -193,7 +181,6 @@ const IsochroonCalculator = (function () {
             totalTimeMinutes: helpers.secondsToMinutes(totalSeconds).toFixed(2),
             avgTimeMinutes: helpers.secondsToMinutes(totalSeconds / edges.length).toFixed(2),
             maxTimeMinutes: helpers.secondsToMinutes(maxSeconds).toFixed(2),
-            minTimeMinutes: helpers.secondsToMinutes(minSeconds).toFixed(2),
             coverage,
             timeLimitMinutes,
             timeLimitFormatted: helpers.formatTime(helpers.minutesToSeconds(timeLimitMinutes))
@@ -209,12 +196,10 @@ const IsochroonCalculator = (function () {
         const timeLimit = timeLimitMinutes || currentIsochroon?.timeLimitMinutes || 5;
         const edgeMap = new Map();
         
-        // Groepeer edges per edgeId en neem de MINIMALE tijd voor visualisatie
         edges.forEach(edge => {
             const timeSeconds = edge.time_seconds || edge.agg_cost || 0;
             const existing = edgeMap.get(edge.edgeId);
             
-            // Gebruik de minimale tijd voor deze edge
             if (!existing || timeSeconds < existing.timeSeconds) {
                 edgeMap.set(edge.edgeId, {
                     edgeId: edge.edgeId,
@@ -228,87 +213,59 @@ const IsochroonCalculator = (function () {
         const colorClasses = getColorClasses(timeLimit);
 
         console.log(`[IsochroonCalculator] ${uniqueEdges.length} unieke edges voor visualisatie`);
-        console.log(`[IsochroonCalculator] Tijdbereik: ${Math.min(...uniqueEdges.map(e => e.timeSeconds)).toFixed(0)}s - ${Math.max(...uniqueEdges.map(e => e.timeSeconds)).toFixed(0)}s`);
-        
-        // Debug: controleer distributie over klassen
-        const classDistribution = new Array(4).fill(0);
         
         colorClasses.forEach((cls, i) => {
-            // ALLE edges toewijzen aan klassen
             const roadSectionIds = uniqueEdges
                 .filter(e => {
                     const p = e.timePercentage;
-                    // Voor isochronen: we willen alle edges binnen bereik
-                    return p >= 0 && p <= 100;
-                })
-                .filter(e => {
-                    const p = e.timePercentage;
-                    // Correcte klasse toewijzing:
-                    if (i === 0) return p <= cls.max; // 0-25%
-                    if (i === 3) return p > cls.min; // 75-100%
-                    return p > cls.min && p <= cls.max; // andere klassen
+                    if (i === 0) return p <= cls.max;
+                    if (i === 3) return p > cls.min;
+                    return p > cls.min && p <= cls.max;
                 })
                 .map(e => e.edgeId);
-            
-            classDistribution[i] = roadSectionIds.length;
             
             console.log(`[IsochroonCalculator] Klasse ${i} (${cls.min}%-${cls.max}%): ${roadSectionIds.length} edges`);
             
             if (!roadSectionIds.length) return;
 
-            const addLayerWithFallback = () => {
-                const config = {
-                    id: `isochroon-roads-${i}`,
-                    type: 'line',
-                    source: 'rvm_segments',
-                    'source-layer': 'roadSections',
-                    paint: {
-                        'line-color': cls.color,
-                        'line-width': 3,
-                        'line-opacity': isochroonVisible ? 1 : 0,
-                        'line-blur': 0
-                    },
-                    filter: ['in', ['get', 'roadSectionId'], ['literal', roadSectionIds]]
-                };
-
-                try {
-                    if (map.getLayer('rvm-lines')) {
-                        const layers = map.getStyle().layers;
-                        const rvmLinesIndex = layers.findIndex(l => l.id === 'rvm-lines');
-                        if (rvmLinesIndex !== -1 && rvmLinesIndex + 1 < layers.length) {
-                            map.addLayer(config, layers[rvmLinesIndex + 1].id);
-                            return;
-                        }
-                    }
-                    map.addLayer(config);
-                    setTimeout(() => { 
-                        try { 
-                            map.moveLayer(`isochroon-roads-${i}`); 
-                        } catch {} 
-                    }, 100);
-                } catch (err) {
-                    console.error(`[IsochroonCalculator] Laag ${i} error:`, err);
-                    try { 
-                        // Probeer een eenvoudigere benadering
-                        map.addLayer(config); 
-                    } catch (e2) {
-                        console.error(`[IsochroonCalculator] Fallback ook gefaald:`, e2);
-                    }
-                }
+            const config = {
+                id: `isochroon-roads-${i}`,
+                type: 'line',
+                source: 'rvm_segments',
+                'source-layer': 'roadSections',
+                paint: {
+                    'line-color': cls.color,
+                    'line-width': 3,
+                    'line-opacity': isochroonVisible ? 0.9 : 0,
+                    'line-blur': 0
+                },
+                filter: ['in', ['get', 'roadSectionId'], ['literal', roadSectionIds]]
             };
 
-            addLayerWithFallback();
+            try {
+                if (map.getLayer('rvm-lines')) {
+                    const layers = map.getStyle().layers;
+                    const rvmLinesIndex = layers.findIndex(l => l.id === 'rvm-lines');
+                    if (rvmLinesIndex !== -1 && rvmLinesIndex + 1 < layers.length) {
+                        map.addLayer(config, layers[rvmLinesIndex + 1].id);
+                        return;
+                    }
+                }
+                map.addLayer(config);
+                setTimeout(() => { 
+                    try { map.moveLayer(`isochroon-roads-${i}`); } catch {} 
+                }, 100);
+            } catch (err) {
+                console.error(`[IsochroonCalculator] Laag ${i} error:`, err);
+                try { map.addLayer(config); } catch (e2) {}
+            }
         });
-
-        // Debug: toon distributie
-        console.log(`[IsochroonCalculator] Klasse distributie:`, classDistribution);
-        console.log(`[IsochroonCalculator] Totaal edges in klassen: ${classDistribution.reduce((a, b) => a + b, 0)} van ${uniqueEdges.length}`);
 
         addIsochroonLegend(colorClasses, timeLimit);
     }
 
     function getColorClasses(timeLimitMinutes) {
-        const colors = ['#e5ff00e0', '#00d131', '#00b4d4', '#a200ce'];
+        const colors = ['#e5ff00e0', '#00d131', '#00b4d4', '#5407e3'];
         const classWidth = 25;
         
         return colors.map((color, i) => {
@@ -359,14 +316,21 @@ const IsochroonCalculator = (function () {
 
         section.querySelector('.legend-toggle-icon')?.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (window.IsochroonCalculator && window.map) {
-                const visible = window.IsochroonCalculator.toggleIsochroonVisibility(window.map);
+            if (window.IsochroonCalculator && mapInstance) {
+                const visible = window.IsochroonCalculator.toggleIsochroonVisibility(mapInstance);
                 e.target.textContent = visible ? 'visibility' : 'visibility_off';
                 updateLegendOpacity(visible);
             }
         });
 
-        ensureLegendExpanded();
+        const legendElement = document.getElementById('legend');
+        if (legendElement?.classList.contains('collapsed')) {
+            legendElement.classList.remove('collapsed');
+            const legendContent = legendElement.querySelector('.legend-content');
+            const icon = legendElement.querySelector('.toggle-icon');
+            if (legendContent) legendContent.style.display = 'block';
+            if (icon) icon.textContent = 'expand_more';
+        }
     }
 
     function updateLegendOpacity(isVisible) {
@@ -376,25 +340,24 @@ const IsochroonCalculator = (function () {
         });
     }
 
-    function ensureLegendExpanded() {
-        const legend = document.getElementById('legend');
-        if (legend?.classList.contains('collapsed')) {
-            legend.classList.remove('collapsed');
-            const content = legend.querySelector('.legend-content');
-            const icon = legend.querySelector('.toggle-icon');
-            if (content) content.style.display = 'block';
-            if (icon) icon.textContent = 'expand_more';
-        }
-    }
-
     function removeIsochroonLegend() {
         document.querySelector('.legend-section.isochroon-section')?.remove();
     }
 
     function removeIsochroonLayers(map) {
         if (!map) return;
-        for (let i = 0; i < 4; i++) try { map.removeLayer(`isochroon-roads-${i}`); } catch {}
-        try { map.removeLayer('isochroon-roads'); } catch {}
+        for (let i = 0; i < 4; i++) {
+            try { 
+                if (map.getLayer(`isochroon-roads-${i}`)) {
+                    map.removeLayer(`isochroon-roads-${i}`);
+                }
+            } catch(e) {}
+        }
+        try { 
+            if (map.getLayer('isochroon-roads')) {
+                map.removeLayer('isochroon-roads');
+            }
+        } catch(e) {}
     }
 
     function clearIsochroonFromMap(map) {
@@ -416,7 +379,7 @@ const IsochroonCalculator = (function () {
                 if (map.getLayer(`isochroon-roads-${i}`)) {
                     map.setPaintProperty(`isochroon-roads-${i}`, 'line-opacity', isochroonVisible ? 0.9 : 0);
                 }
-            } catch {}
+            } catch(e) {}
         }
 
         updateLegendOpacity(isochroonVisible);
@@ -436,7 +399,7 @@ const IsochroonCalculator = (function () {
     function clear() {
         graph = currentIsochroon = null;
         reachableEdges = new Map();
-        if (window.map) clearIsochroonFromMap(window.map);
+        if (mapInstance) clearIsochroonFromMap(mapInstance);
     }
 
     function nodeExists(nodeId) {
@@ -452,10 +415,21 @@ const IsochroonCalculator = (function () {
     }
 
     return {
-        init, updateData, clear, calculateIsochroon, showIsochroonOnMap, clearIsochroonFromMap,
-        toggleIsochroonVisibility, getSampleNodes, nodeExists, getCurrentIsochroon: () => currentIsochroon,
-        isIsochroonVisible: () => isochroonVisible, getGraphSize: () => graph?.size || 0,
-        minutesToSeconds: helpers.minutesToSeconds, secondsToMinutes: helpers.secondsToMinutes,
+        init, 
+        setMap,
+        updateData, 
+        clear, 
+        calculateIsochroon, 
+        showIsochroonOnMap, 
+        clearIsochroonFromMap,
+        toggleIsochroonVisibility, 
+        getSampleNodes, 
+        nodeExists, 
+        getCurrentIsochroon: () => currentIsochroon,
+        isIsochroonVisible: () => isochroonVisible, 
+        getGraphSize: () => graph?.size || 0,
+        minutesToSeconds: helpers.minutesToSeconds, 
+        secondsToMinutes: helpers.secondsToMinutes,
         formatTime: helpers.formatTime
     };
 })();

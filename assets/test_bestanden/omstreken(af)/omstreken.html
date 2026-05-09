@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>NDW RVM – Gemeente viewer met omstreken (wegen)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,1" />
+
+  <!-- Externe bestanden met gemeente en omstreken data -->
+  <script src="gemeentes.js"></script>
+  <script src="omstreken.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; }
+    #map { width: 100%; height: 100%; }
+    .search-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(4px);
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      z-index: 1000;
+      width: 360px;
+      padding: 16px;
+      font-size: 13px;
+    }
+    .search-panel label { font-weight: 600; display: block; margin-bottom: 6px; }
+    .sub { font-size: 12px; color: #334155; margin-bottom: 12px; border-left: 3px solid #3b82f6; padding-left: 8px; }
+    .input-group { display: flex; gap: 8px; margin-bottom: 12px; }
+    #gemeenteInput { flex: 1; padding: 10px 12px; border-radius: 40px; border: 1px solid #cbd5e1; }
+    button { background: #1e293b; border: none; border-radius: 40px; padding: 8px 16px; font-weight: 600; color: white; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
+    button.primary { background: #c04f5a; }
+    button.primary:hover { background: #a23b45; }
+    button.secondary { background: #2c3e66; }
+    button.secondary:hover { background: #1e2a4a; }
+    button.toggle-btn { background: #4a6741; }
+    button.toggle-btn.active { background: #c04f5a; }
+    button.toggle-btn:hover { background: #3a5532; }
+    .btn-row { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+    .material-symbols-outlined { font-size: 18px; }
+    .status-msg { position: absolute; bottom: 20px; left: 20px; background: #0f172ad9; color: white; padding: 8px 18px; border-radius: 40px; font-size: 12px; z-index: 1000; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+    .legend { position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.75); color: white; padding: 8px 14px; border-radius: 24px; font-size: 11px; z-index: 1000; display: flex; gap: 16px; }
+    
+    /* Zoom indicator styling */
+    .zoom-indicator {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      border-radius: 40px;
+      padding: 8px 16px;
+      font-family: 'Segoe UI', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.2);
+      pointer-events: none;
+    }
+    
+    .zoom-level {
+      color: #f97316;
+      font-size: 18px;
+      font-weight: 700;
+      min-width: 45px;
+      text-align: center;
+    }
+    
+    .zoom-bar-container {
+      width: 120px;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .zoom-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4a6741, #f97316);
+      border-radius: 4px;
+      transition: width 0.2s ease;
+      width: 0%;
+    }
+    
+    .zoom-label {
+      color: rgba(255,255,255,0.7);
+      font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+    
+    @media (max-width: 640px) {
+      .zoom-indicator { 
+        top: 10px;
+        right: 10px;
+        padding: 6px 12px;
+      }
+      .zoom-bar-container { width: 80px; }
+      .zoom-level { font-size: 14px; min-width: 35px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="search-panel">
+  <label>🚗 NDW RVM – Gemeente viewer</label>
+  <div class="sub">Klik op een gemeentevlak om NDW-wegvakken te tonen</div>
+  <label for="gemeenteInput">Gemeente:</label>
+  <div class="input-group">
+    <input type="text" id="gemeenteInput" list="gemeenteSuggesties" placeholder="Bijv: Helmond, Eindhoven..." autocomplete="off">
+    <datalist id="gemeenteSuggesties">
+      <!-- Wordt dynamisch gevuld -->
+    </datalist>
+  </div>
+  <div class="btn-row">
+    <button id="zoekGemeenteBtn" class="primary"><span class="material-symbols-outlined">search</span> Zoek</button>
+    <button id="toggleGrenzenBtn" class="toggle-btn active"><span class="material-symbols-outlined">layers</span> Verberg grenzen</button>
+    <button id="toggleOmstrekenBtn" class="toggle-btn"><span class="material-symbols-outlined">near_me</span> Omstreken uit</button>
+    <button id="resetViewBtn" class="secondary"><span class="material-symbols-outlined">public</span> Heel NL</button>
+  </div>
+</div>
+<div id="statusMsg" class="status-msg">✅ Gereed</div>
+<div class="legend">
+  <span>🟠 NDW wegvakken</span>
+  <span>🟢 Gemeentegrenzen</span>
+  <span>📝 Gemeentelabels</span>
+</div>
+
+<!-- Zoom indicator -->
+<div class="zoom-indicator" id="zoomIndicator">
+  <span class="material-symbols-outlined" style="font-size: 16px;">zoom_in_map</span>
+  <div class="zoom-bar-container">
+    <div class="zoom-bar-fill" id="zoomBarFill"></div>
+  </div>
+  <span class="zoom-level" id="zoomLevel">Zoom 0</span>
+  <span class="zoom-label">zoom</span>
+</div>
+
+<script>
+  // ==================== MAP INIT ====================
+  const map = new maplibregl.Map({
+    container: "map",
+    style: {
+      version: 8,
+      glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+      sources: {
+        satellite: {
+          type: "raster",
+          tiles: ["https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png"],
+          tileSize: 256
+        },
+        rvm_segments: {
+          type: "vector",
+          tiles: ["https://maps.ndw.nu/api/v1/nwb/latest/mbtiles/roadSections/tiles/{z}/{x}/{y}.pbf"],
+          maxzoom: 14
+        }
+      },
+      layers: [
+        {
+          id: "background",
+          type: "raster",
+          source: "satellite",
+          paint: { "raster-opacity": 0.85, "raster-saturation": -0.7 }
+        },
+        {
+          id: "rvm-lines",
+          type: "line",
+          source: "rvm_segments",
+          "source-layer": "roadSections",
+          paint: { "line-color": "#f97316", "line-width": 2.5, "line-opacity": 0.95 },
+          filter: ["==", ["get", "municipalityName"], "Helmond"]
+        }
+      ]
+    },
+    center: [5.387, 52.156],
+    zoom: 9
+  });
+
+  map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+  // Globale variabelen
+  let gemeenteData = null;
+  let grenzenZichtbaar = true;
+  let omstrekenActief = false;
+  let huidigeGemeenteNaam = "";
+  let huidigeGemeenteCode = null;
+
+  // Helper: statusmelding
+  function setStatus(text, isError = false) {
+    const el = document.getElementById("statusMsg");
+    el.style.backgroundColor = isError ? "#b91c1c" : "#0f172a";
+    el.innerText = isError ? `⚠️ ${text}` : `✓ ${text}`;
+    el.style.opacity = "1";
+    setTimeout(() => { el.style.opacity = "0"; }, 3000);
+  }
+
+  // Helper: zoom indicator updaten
+  function updateZoomIndicator() {
+    const zoom = map.getZoom();
+    const zoomLevelElement = document.getElementById('zoomLevel');
+    const zoomBarFill = document.getElementById('zoomBarFill');
+    
+    // Zoom range: 0-20 (max zoom van MapLibre GL)
+    const minZoom = 0;
+    const maxZoom = 20;
+    const percentage = ((zoom - minZoom) / (maxZoom - minZoom)) * 100;
+    const clampedPercentage = Math.min(100, Math.max(0, percentage));
+    
+    // Update de balk
+    if (zoomBarFill) {
+      zoomBarFill.style.width = `${clampedPercentage}%`;
+    }
+    
+    // Update de tekst met één decimaal voor precisie
+    if (zoomLevelElement) {
+      zoomLevelElement.textContent = `${zoom.toFixed(1)}`;
+    }
+    
+    // Optioneel: pas de kleur van de indicator aan op basis van zoomniveau
+    const indicator = document.getElementById('zoomIndicator');
+    if (indicator) {
+      if (zoom < 8) {
+        indicator.style.borderLeft = '3px solid #4a6741';
+      } else if (zoom < 12) {
+        indicator.style.borderLeft = '3px solid #f97316';
+      } else {
+        indicator.style.borderLeft = '3px solid #dc2626';
+      }
+    }
+  }
+
+  // Helper: vind gemeentenaam op basis van code (uit de externe gemeenten array)
+  function getGemeenteNaamByCode(code) {
+    const gemeente = gemeenten.find(g => g.code === code);
+    return gemeente ? gemeente.naam : null;
+  }
+
+  // Helper: vind gemeentecode op basis van naam (uit de externe gemeenten array)
+  function getGemeenteCodeByNaam(naam) {
+    const gemeente = gemeenten.find(g => g.naam === naam);
+    return gemeente ? gemeente.code : null;
+  }
+
+  // Bepaal welke gemeentenamen getoond moeten worden voor de NDW-filter (alleen hoofdgemeente of + omstreken)
+  function getTeTonenGemeenteNamen(hoofdNaam, gebruikOmstreken) {
+    if (!gebruikOmstreken) return [hoofdNaam];
+    
+    const code = getGemeenteCodeByNaam(hoofdNaam);
+    if (!code) return [hoofdNaam];
+    
+    // Gebruik de externe omstreken array
+    const omringendeCodes = omstreken[code] || [];
+    const namen = [hoofdNaam];
+    for (let omCode of omringendeCodes) {
+      const omNaam = getGemeenteNaamByCode(omCode);
+      if (omNaam && !namen.includes(omNaam)) namen.push(omNaam);
+    }
+    return namen;
+  }
+
+  // Filter NDW-lagen op basis van de te tonen gemeentenamen (de WEGEN!)
+  function updateNDWFilter(hoofdNaam, toonOmstreken) {
+    if (!hoofdNaam) return;
+    const teTonen = getTeTonenGemeenteNamen(hoofdNaam, toonOmstreken);
+    
+    console.log("Te tonen gemeenten voor NDW filter:", teTonen);
+    
+    if (teTonen.length === 1) {
+      map.setFilter('rvm-lines', ['==', ['get', 'municipalityName'], teTonen[0]]);
+      setStatus(`${teTonen[0]} - NDW wegvakken geladen`, false);
+    } else {
+      // Meerdere gemeenten: gebruik 'in' filter om alle wegen van deze gemeenten te tonen
+      map.setFilter('rvm-lines', ['in', ['get', 'municipalityName'], ['literal', teTonen]]);
+      setStatus(`${teTonen.length} gemeenten (incl. omstreken) - NDW wegvakken geladen`, false);
+    }
+  }
+
+  // Volledige update bij selectie van gemeente
+  function selecteerGemeente(naam, centerMap = true) {
+    if (!naam || !gemeenteData) return;
+    
+    huidigeGemeenteNaam = naam;
+    huidigeGemeenteCode = getGemeenteCodeByNaam(naam);
+    
+    console.log("Geselecteerde gemeente:", naam, "Code:", huidigeGemeenteCode);
+    console.log("Omstreken actief:", omstrekenActief);
+    
+    // Update NDW filter (met huidige omstreken status) -> Dit toont de WEGEN
+    updateNDWFilter(naam, omstrekenActief);
+    
+    // Center map op de gemeente
+    if (centerMap) {
+      const feature = gemeenteData.features.find(f => f.properties.naam === naam);
+      if (feature) {
+        const bbox = turf.bbox(feature);
+        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
+        // De zoom indicator wordt automatisch geüpdatet na de fitBounds (via moveend event)
+      }
+    }
+    
+    setStatus(`${naam} geselecteerd${omstrekenActief ? ' + omstreken (wegen getoond)' : ''}`, false);
+  }
+
+  // Toggle omstreken aan/uit (voor de WEGEN)
+  function toggleOmstreken() {
+    if (!huidigeGemeenteNaam) {
+      setStatus("Selecteer eerst een gemeente", true);
+      return;
+    }
+    
+    omstrekenActief = !omstrekenActief;
+    const btn = document.getElementById('toggleOmstrekenBtn');
+    
+    if (omstrekenActief) {
+      btn.innerHTML = '<span class="material-symbols-outlined">near_me</span> Omstreken aan';
+      btn.style.background = '#c04f5a';
+      setStatus(`Omstreken AAN: Wegen van ${huidigeGemeenteNaam} en omliggende gemeenten worden getoond`, false);
+    } else {
+      btn.innerHTML = '<span class="material-symbols-outlined">near_me</span> Omstreken uit';
+      btn.style.background = '#4a6741';
+      setStatus(`Omstreken UIT: Alleen wegen van ${huidigeGemeenteNaam} worden getoond`, false);
+    }
+    
+    // Werk NDW filter bij (dit bepaalt welke WEGEN worden getoond)
+    updateNDWFilter(huidigeGemeenteNaam, omstrekenActief);
+  }
+
+  // Toggle gemeentegrenzen (alleen visueel, geen invloed op wegen)
+  function toggleGrenzen() {
+    const fillLayer = map.getLayer('gemeente-fill');
+    const outlineLayer = map.getLayer('gemeente-outline');
+    const labelsLayer = map.getLayer('gemeente-labels');
+    
+    if (grenzenZichtbaar) {
+      if (fillLayer) map.setLayoutProperty('gemeente-fill', 'visibility', 'none');
+      if (outlineLayer) map.setLayoutProperty('gemeente-outline', 'visibility', 'none');
+      if (labelsLayer) map.setLayoutProperty('gemeente-labels', 'visibility', 'none');
+      grenzenZichtbaar = false;
+      document.getElementById('toggleGrenzenBtn').innerHTML = '<span class="material-symbols-outlined">layers</span> Toon grenzen';
+      document.getElementById('toggleGrenzenBtn').style.background = '#2c3e66';
+      setStatus('Gemeentegrenzen verborgen', false);
+    } else {
+      if (fillLayer) map.setLayoutProperty('gemeente-fill', 'visibility', 'visible');
+      if (outlineLayer) map.setLayoutProperty('gemeente-outline', 'visibility', 'visible');
+      if (labelsLayer) map.setLayoutProperty('gemeente-labels', 'visibility', 'visible');
+      grenzenZichtbaar = true;
+      document.getElementById('toggleGrenzenBtn').innerHTML = '<span class="material-symbols-outlined">layers</span> Verberg grenzen';
+      document.getElementById('toggleGrenzenBtn').style.background = '#4a6741';
+      setStatus('Gemeentegrenzen zichtbaar', false);
+    }
+  }
+
+  // Gemeentegrenzen laden van PDOK
+  async function loadMunicipalities() {
+    setStatus("Gemeentegrenzen laden...", false);
+    
+    proj4.defs("EPSG:28992", "+proj=sterea +lat_0=52.15616055555555 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +towgs84=565.2369,50.0087,465.658,-0.406857,0.350733,-1.87035,4.0812 +units=m +no_defs");
+    const rdToWgs84 = proj4("EPSG:28992", "EPSG:4326");
+    
+    const url = "https://service.pdok.nl/kadaster/bestuurlijkegebieden/wfs/v1_0?service=WFS&version=2.0.0&request=GetFeature&typeName=bestuurlijkegebieden:Gemeentegebied&outputFormat=application/json&srsName=EPSG:28992";
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    function convertCoords(coords) {
+      if (typeof coords[0] === 'number') {
+        return rdToWgs84.forward([coords[0], coords[1]]);
+      }
+      return coords.map(c => convertCoords(c));
+    }
+    
+    const features = data.features.map(f => {
+      const geom = f.geometry;
+      let newCoords;
+      if (geom.type === 'Polygon') {
+        newCoords = geom.coordinates.map(ring => convertCoords(ring));
+      } else {
+        newCoords = geom.coordinates.map(poly => poly.map(ring => convertCoords(ring)));
+      }
+      
+      return {
+        type: "Feature",
+        properties: { naam: f.properties.naam, code: f.properties.code },
+        geometry: { type: geom.type, coordinates: newCoords }
+      };
+    });
+    
+    gemeenteData = { type: "FeatureCollection", features: features };
+    
+    if (map.getSource('gemeenten')) {
+      map.getSource('gemeenten').setData(gemeenteData);
+    } else {
+      map.addSource('gemeenten', { type: 'geojson', data: gemeenteData });
+    }
+    
+    // Verwijder oude lagen
+    ['gemeente-fill', 'gemeente-outline', 'gemeente-labels'].forEach(id => {
+      if (map.getLayer(id)) map.removeLayer(id);
+    });
+    
+    map.addLayer({
+      id: 'gemeente-fill',
+      type: 'fill',
+      source: 'gemeenten',
+      paint: { 'fill-color': '#86efac', 'fill-opacity': 0.55, 'fill-outline-color': '#166534' }
+    });
+    
+    map.addLayer({
+      id: 'gemeente-outline',
+      type: 'line',
+      source: 'gemeenten',
+      paint: { 'line-color': '#22c55e', 'line-width': 2 }
+    });
+    
+    map.addLayer({
+      id: 'gemeente-labels',
+      type: 'symbol',
+      source: 'gemeenten',
+      layout: {
+        'text-field': ['get', 'naam'],
+        'text-font': ['Open Sans Regular'],
+        'text-size': 12,
+        'text-anchor': 'center'
+      },
+      paint: { 'text-color': '#1a3a2a', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }
+    });
+    
+    setStatus(`${features.length} gemeenten geladen!`, false);
+  }
+
+  // ==================== EVENT HANDLERS ====================
+  
+  // Klik op gemeente (fill)
+  map.on('click', 'gemeente-fill', (e) => {
+    const naam = e.features[0].properties.naam;
+    document.getElementById('gemeenteInput').value = naam;
+    selecteerGemeente(naam, true);
+  });
+  
+  // Klik op gemeentelabel
+  map.on('click', 'gemeente-labels', (e) => {
+    const naam = e.features[0].properties.naam;
+    document.getElementById('gemeenteInput').value = naam;
+    selecteerGemeente(naam, true);
+  });
+  
+  map.on('mouseenter', 'gemeente-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'gemeente-fill', () => { map.getCanvas().style.cursor = ''; });
+  
+  // NDW popup
+  map.on('click', 'rvm-lines', (e) => {
+    const p = e.features[0].properties;
+    let html = `<strong>🛣️ NDW Wegvak</strong><hr>`;
+    ['roadSectionId', 'municipalityName', 'drivingDirection', 'carriagewayTypeCode'].forEach(k => {
+      if (p[k]) html += `<b>${k}:</b> ${p[k]}<br>`;
+    });
+    new maplibregl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
+  });
+  
+  map.on('mouseenter', 'rvm-lines', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'rvm-lines', () => { map.getCanvas().style.cursor = ''; });
+  
+  // Zoom events voor de indicator
+  map.on('zoom', updateZoomIndicator);
+  map.on('zoomend', updateZoomIndicator);
+  map.on('moveend', updateZoomIndicator);
+  map.on('load', updateZoomIndicator);
+  
+  // UI Events
+  document.getElementById('zoekGemeenteBtn').addEventListener('click', () => {
+    const naam = document.getElementById('gemeenteInput').value.trim();
+    if (naam && gemeenteData) {
+      const feature = gemeenteData.features.find(f => f.properties.naam === naam);
+      if (feature) {
+        selecteerGemeente(naam, true);
+      } else {
+        setStatus(`Gemeente "${naam}" niet gevonden`, true);
+      }
+    }
+  });
+  
+  document.getElementById('toggleGrenzenBtn').addEventListener('click', toggleGrenzen);
+  document.getElementById('toggleOmstrekenBtn').addEventListener('click', toggleOmstreken);
+  
+  document.getElementById('resetViewBtn').addEventListener('click', () => {
+    map.flyTo({ center: [5.387, 52.156], zoom: 8.5, duration: 1000 });
+    setStatus('Heel Nederland', false);
+    huidigeGemeenteNaam = "";
+    huidigeGemeenteCode = null;
+    if (omstrekenActief) {
+      omstrekenActief = false;
+      const btn = document.getElementById('toggleOmstrekenBtn');
+      btn.innerHTML = '<span class="material-symbols-outlined">near_me</span> Omstreken uit';
+      btn.style.background = '#4a6741';
+    }
+    map.setFilter('rvm-lines', ['==', ['get', 'municipalityName'], '']);
+  });
+  
+  // Vul datalist met gemeentenamen uit de externe gemeenten array
+  function vulSuggesties() {
+    const datalist = document.getElementById('gemeenteSuggesties');
+    datalist.innerHTML = '';
+    if (typeof gemeenten !== 'undefined' && gemeenten.length > 0) {
+      gemeenten.forEach(g => {
+        if (g.naam && g.naam !== "") {
+          const option = document.createElement('option');
+          option.value = g.naam;
+          datalist.appendChild(option);
+        }
+      });
+      console.log(`${gemeenten.filter(g => g.naam).length} gemeenten geladen voor suggesties`);
+    } else {
+      console.error("Gemeenten array niet gevonden of leeg!");
+    }
+  }
+  
+  // Controleer of de externe data geladen is
+  function checkExterneData() {
+    if (typeof gemeenten === 'undefined') {
+      console.error("gemeentes.js is niet correct geladen!");
+      setStatus("Fout: gemeentes.js niet geladen", true);
+      return false;
+    }
+    if (typeof omstreken === 'undefined') {
+      console.error("omstreken.js is niet correct geladen!");
+      setStatus("Fout: omstreken.js niet geladen", true);
+      return false;
+    }
+    console.log("Externe data geladen:", Object.keys(gemeenten).length, "gemeenten,", Object.keys(omstreken).length, "omstreken relaties");
+    return true;
+  }
+  
+  // Start na laden kaart
+  map.on('load', async () => {
+    if (checkExterneData()) {
+      vulSuggesties();
+      await loadMunicipalities();
+      updateZoomIndicator(); // Initial update
+    }
+  });
+</script>
+</body>
+</html>
