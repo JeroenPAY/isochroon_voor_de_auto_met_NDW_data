@@ -2,9 +2,9 @@
 <html lang="nl">
 <head>
   <meta charset="utf-8" />
-  <title>Fietsnetwerk - NDW Gemeente Viewer</title>
+  <title>Isochronen voor de auto met het NDW</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-
+<section> <!--Alle externe links-->
   <!-- Externe dependencies -->
   <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -35,7 +35,7 @@
    Hoofdscript LAATST laden
   ------------------------------------ -->
   <script src="assets/js/script.js" defer></script>
-
+</section>
   <style>
     /* Extra styling voor de controls */
     .controls {
@@ -207,7 +207,7 @@
   </button>
 </div>
 <datalist id="gemeenteOptions"></datalist>
-  
+  <!-- Kaart container -->
   <div id="map"></div>
   <canvas id="arrowCanvas" width="60" height="60" style="display: none;"></canvas>
 
@@ -235,10 +235,7 @@
           <div class="legend-text">Niet toegankelijk (beta)</div>
         </div>
       </div>
-        
-
-    
-     
+ 
       <!-- 
       //////////////////////////////////
       Gemeentegrenzen voorlopig weggelaten ivm verwarring
@@ -258,23 +255,36 @@
       <!-- ACHTERGRONDKAARTEN RADIO BUTTONS -->
       <div class="legend-section basemap-section">
         <div class="legend-section-title">Achtergrondkaart</div>
+
         <div class="basemap-radio-group">
+
           <label class="basemap-radio-item">
             <input type="radio" name="basemap" value="pdok-grijs" checked class="basemap-radio">
             <div class="basemap-radio-custom"></div>
             <div class="basemap-icon">
               <span class="material-symbols-outlined">layers</span>
             </div>
-            <span class="basemap-label">PDOK Grijs</span>
+            <span class="basemap-label">BRT Grijs</span>
           </label>
+
+          <label class="basemap-radio-item">
+            <input type="radio" name="basemap" value="pdok-grijs-licht" class="basemap-radio">
+            <div class="basemap-radio-custom"></div>
+            <div class="basemap-icon">
+              <span class="material-symbols-outlined">light_mode</span>
+            </div>
+            <span class="basemap-label">BRT Licht</span>
+          </label>
+
           <label class="basemap-radio-item">
             <input type="radio" name="basemap" value="esri-satellite" class="basemap-radio">
             <div class="basemap-radio-custom"></div>
             <div class="basemap-icon">
               <span class="material-symbols-outlined">satellite_alt</span>
             </div>
-            <span class="basemap-label">PDOK Luchtfoto</span>
+            <span class="basemap-label">ESRI Luchtfoto</span>
           </label>
+
         </div>
       </div>
     </div>

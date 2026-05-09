@@ -162,42 +162,44 @@ function handleBasemapChange(basemapType) {
         showEsriSatellite();
     } else if (basemapType === "pdok-grijs") {
         showGrayBackground();
+    }else if (basemapType === "pdok-grijs-licht") {
+        showGrayLightBackground();
     }
 }
 
-// Toon Esri satelliet
+const layers = {
+    'esri-satellite-layer': false,  
+    'background-layer': false,
+    'pdok-grijs-licht-layer': false
+};
+
+function setActiveLayer(activeLayerName) {
+    if (!window.map) return;
+
+    // Zet alle lagen op 'none' (verborgen)
+    Object.keys(layers).forEach(layerName => {
+        if (window.map.getLayer(layerName)) {
+            window.map.setLayoutProperty(layerName, 'visibility', 'none');
+        }
+    });
+
+    // Toon de gekozen laag
+    if (window.map.getLayer(activeLayerName)) {
+        window.map.setLayoutProperty(activeLayerName, 'visibility', 'visible');
+    }
+}
+
 function showEsriSatellite() {
-    if (!window.map) return;
-
-    // console.log("Toon Esri satelliet achtergrond");
-
-    // Verberg grijze achtergrond
-    if (window.map.getLayer('background-layer')) {
-        window.map.setLayoutProperty('background-layer', 'visibility', 'none');
-    }
-
-    // Toon Esri satelliet
-    if (window.map.getLayer('esri-satellite-layer')) {
-        window.map.setLayoutProperty('esri-satellite-layer', 'visibility', 'visible');
-    }
+    setActiveLayer('esri-satellite-layer');
 }
-
-// Toon grijze achtergrondkaart
 function showGrayBackground() {
-    if (!window.map) return;
-
-    // console.log("Toon grijze achtergrondkaart");
-
-    // Verberg Esri satelliet
-    if (window.map.getLayer('esri-satellite-layer')) {
-        window.map.setLayoutProperty('esri-satellite-layer', 'visibility', 'none');
-    }
-
-    // Toon grijze achtergrond
-    if (window.map.getLayer('background-layer')) {
-        window.map.setLayoutProperty('background-layer', 'visibility', 'visible');
-    }
+    setActiveLayer('background-layer');
 }
+function showGrayLightBackground() {
+    setActiveLayer('pdok-grijs-licht-layer');
+}
+
+
 
 // Setup legend controls
 function setupLegendControls(map) {

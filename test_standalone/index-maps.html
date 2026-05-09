@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🗺️ Kaart van Nederland - MapLibre met meerdere stijlen</title>
+    <!-- MapLibre GL JS CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            background-color: #e9f0f5;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Stijlkiezer - modern en gebruiksvriendelijk */
+        .map-style-selector {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(12px);
+            border-radius: 24px;
+            padding: 10px 18px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            font-size: 0.85rem;
+            font-weight: 500;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            font-family: inherit;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+        }
+
+        .map-style-selector:hover {
+            background: rgba(255, 255, 255, 1);
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+        }
+
+        .map-style-selector label {
+            margin-right: 10px;
+            color: #1a3a4a;
+            font-weight: 600;
+            letter-spacing: -0.2px;
+        }
+
+        .map-style-selector select {
+            padding: 8px 14px;
+            border-radius: 40px;
+            border: 1px solid #cbd5e1;
+            background: white;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            outline: none;
+            font-family: inherit;
+            color: #0f2c38;
+            transition: all 0.2s;
+        }
+
+        .map-style-selector select:hover {
+            border-color: #2c7a4d;
+            background: #fefdf8;
+        }
+
+        .map-style-selector select:focus {
+            border-color: #1f6e43;
+            box-shadow: 0 0 0 2px rgba(31, 110, 67, 0.2);
+        }
+
+        /* Informatie footer - rechtsonder */
+        .info-footer {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(8px);
+            border-radius: 28px;
+            padding: 8px 18px;
+            color: #f0f0f0;
+            font-size: 0.7rem;
+            font-family: 'Segoe UI', monospace;
+            pointer-events: auto;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+
+        .info-footer a {
+            color: #bbdef5;
+            text-decoration: none;
+        }
+
+        .info-footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Actieve stijl naam highlight */
+        #active-style {
+            font-weight: bold;
+            color: #c8e6b5;
+        }
+
+        /* Kleine schaal aanpassing mobiel */
+        @media (max-width: 640px) {
+            .map-style-selector {
+                top: 12px;
+                right: 12px;
+                padding: 6px 12px;
+            }
+            .map-style-selector select {
+                padding: 6px 10px;
+                font-size: 0.75rem;
+            }
+            .info-footer {
+                bottom: 10px;
+                right: 10px;
+                font-size: 0.6rem;
+                padding: 5px 12px;
+            }
+        }
+
+        /* Aanpassing voor attribution netheid */
+        .maplibregl-ctrl-attrib {
+            font-size: 9px;
+            background: rgba(0,0,0,0.6) !important;
+            padding: 2px 6px !important;
+            border-radius: 16px !important;
+            bottom: 8px !important;
+            left: 8px !important;
+            right: auto !important;
+        }
+        
+        .maplibregl-ctrl-attrib a {
+            color: #ddd !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="map-style-selector">
+        <label>🗺️ Kaartstijl:</label>
+        <select id="style-picker">
+            <option value="positron">🌿 Carto Positron (Standaard)</option>
+            <option value="liberty_vector">🌍 OpenFreeMap (Liberty)</option>
+            <option value="osm_raster">🗺️ OpenStreetMap (Raster)</option>
+            <option value="satellite_esri">🛰️ Satelliet (ESRI)</option>
+            <option value="topo_pdok">⛰️ Topografisch (PDOK)</option>
+        </select>
+    </div>
+
+    <div class="info-footer">
+        🇳🇱 Kaart van Nederland • Kies uit 5 achtergronden • 
+        📍 Huidig: <span id="active-style">Carto Positron</span>
+    </div>
+
+    <script>
+        (function() {
+            // ========== CONFIGURATIE ==========
+            // Centrum van Nederland (lng, lat)
+            const NETHERLANDS_CENTER = [5.2913, 52.1326];
+            const DEFAULT_ZOOM = 7.5;
+            const MIN_ZOOM = 6.4;      // Net iets ruimer, maar niet de hele wereld
+            const MAX_ZOOM = 18;
+            
+            // Ruime bounds voor Nederland + omringende regio's (België, deel Duitsland, Noordzee)
+            // Je kunt net iets verder uitzoomen maar blijft binnen West-Europa
+            const NETHERLANDS_BOUNDS = [
+                [2.5, 50.3],   // Zuidwest (Calais/Duinkerke regio, onder Zeeland)
+                [7.9, 54.1]    // Noordoost (boven Groningen, deel Duitse wadden)
+            ];
+            
+            // ========== DEFINITIES VAN KAARTSTIJLEN ==========
+            // 1. CartoDB Positron (helder, modern, vector-achtig)
+            const STYLE_POSITRON = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+            
+            // 2. OpenFreeMap Liberty (mooie vectorstijl op basis van OSM)
+            const STYLE_LIBERTY = "https://tiles.openfreemap.org/styles/liberty";
+            
+            // 3. OpenStreetMap raster (klassieke tegels)
+            const STYLE_OSM_RASTER = {
+                version: 8,
+                name: "OSM Standard Raster",
+                sources: {
+                    "osm-raster": {
+                        type: "raster",
+                        tiles: [
+                            "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                            "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                            "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        ],
+                        tileSize: 256,
+                        attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+                    }
+                },
+                layers: [{
+                    id: "osm-tiles",
+                    type: "raster",
+                    source: "osm-raster",
+                    minzoom: 0,
+                    maxzoom: 19
+                }]
+            };
+            
+            // 4. ESRI World Imagery (Satelliet / Luchtfoto)
+            const STYLE_SATELLITE = {
+                version: 8,
+                name: "ESRI World Imagery",
+                sources: {
+                    "esri-sat": {
+                        type: "raster",
+                        tiles: [
+                            "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                        ],
+                        tileSize: 256,
+                        attribution: 'Satelliet: &copy; <a href="https://www.esri.com" target="_blank">Esri</a>, Maxar, Earthstar'
+                    }
+                },
+                layers: [{
+                    id: "satellite-layer",
+                    type: "raster",
+                    source: "esri-sat",
+                    minzoom: 0,
+                    maxzoom: 18
+                }]
+            };
+            
+            // 5. PDOK Topografische kaart (officiële Nederlandse topografie)
+            const STYLE_TOPO = {
+                version: 8,
+                name: "PDOK Topografische Kaart",
+                sources: {
+                    "topo-pdok": {
+                        type: "raster",
+                        tiles: [
+                            "https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png"
+                        ],
+                        tileSize: 256,
+                        attribution: '&copy; <a href="https://www.pdok.nl" target="_blank">PDOK</a>, Kadaster, BRT'
+                    }
+                },
+                layers: [{
+                    id: "topo-layer",
+                    type: "raster",
+                    source: "topo-pdok",
+                    minzoom: 0,
+                    maxzoom: 18
+                }]
+            };
+            
+            // Helper voor weergave stijlnaam in footer
+            const styleDisplayNames = {
+                positron: "Carto Positron",
+                liberty_vector: "OpenFreeMap",
+                osm_raster: "OpenStreetMap",
+                satellite_esri: "Satelliet ESRI",
+                topo_pdok: "Topografisch PDOK"
+            };
+            
+            // Referenties
+            let map;
+            
+            // Functie om de actieve stijlnaam in footer te updaten
+            function updateFooterStyleName(styleKey) {
+                const span = document.getElementById('active-style');
+                if (span && styleDisplayNames[styleKey]) {
+                    span.innerText = styleDisplayNames[styleKey];
+                } else if (span) {
+                    span.innerText = "Aangepast";
+                }
+            }
+            
+            // Hoofdfunctie voor het wisselen van kaartstijl met behoud van viewport, bounds en zoomlimieten
+            function switchMapStyle(styleKey) {
+                let newStyle;
+                switch (styleKey) {
+                    case 'positron':
+                        newStyle = STYLE_POSITRON;
+                        break;
+                    case 'liberty_vector':
+                        newStyle = STYLE_LIBERTY;
+                        break;
+                    case 'osm_raster':
+                        newStyle = STYLE_OSM_RASTER;
+                        break;
+                    case 'satellite_esri':
+                        newStyle = STYLE_SATELLITE;
+                        break;
+                    case 'topo_pdok':
+                        newStyle = STYLE_TOPO;
+                        break;
+                    default:
+                        newStyle = STYLE_POSITRON;
+                }
+                
+                // Bewaar huidige camera-instellingen voor behoud
+                const currentCenter = map.getCenter();
+                const currentZoom = map.getZoom();
+                const currentPitch = map.getPitch();
+                const currentBearing = map.getBearing();
+                
+                // Pas de stijl aan
+                map.setStyle(newStyle);
+                
+                // Nadat de stijl geladen is: herstel camera, bounds en zoomlimieten
+                map.once('style.load', () => {
+                    // Herstel de camera positie
+                    map.setCenter(currentCenter);
+                    map.setZoom(currentZoom);
+                    map.setPitch(currentPitch);
+                    map.setBearing(currentBearing);
+                    
+                    // Zet de bounds opnieuw (blijft actief)
+                    map.setMaxBounds(NETHERLANDS_BOUNDS);
+                    
+                    // Zorg dat minZoom en maxZoom worden gerespecteerd (MapLibre behoudt deze bij setStyle)
+                    // Maar we zetten ze voor de zekerheid nogmaals
+                    map.setMinZoom(MIN_ZOOM);
+                    map.setMaxZoom(MAX_ZOOM);
+                    
+                    // Update de footer naam
+                    updateFooterStyleName(styleKey);
+                });
+            }
+            
+            // ========== INITIALISATIE VAN DE KAART ==========
+            function initMap() {
+                map = new maplibregl.Map({
+                    container: 'map',
+                    style: STYLE_POSITRON,      // Standaard stijl: Carto Positron
+                    center: NETHERLANDS_CENTER,
+                    zoom: DEFAULT_ZOOM,
+                    minZoom: MIN_ZOOM,
+                    maxZoom: MAX_ZOOM,
+                    pitch: 0,
+                    bearing: 0,
+                    attributionControl: true,
+                    dragRotate: true,            // Toch lekker draaien bij rechtsklik/ctrl
+                    touchZoomRotate: true
+                });
+                
+                // === Grenzen instellen (gebruiker kan niet buiten Nederland + ruime marge) ===
+                map.on('load', () => {
+                    map.setMaxBounds(NETHERLANDS_BOUNDS);
+                    // Eventueel extra check om ervoor te zorgen dat men niet buiten kan scrollen
+                    // Deze bounds zorgen dat pannen en zoomen binnen dit vak blijft.
+                    
+                    // Kleine optimalisatie: als de kaart ooit buiten de bounds probeert te komen wordt het gecorrigeerd
+                    console.log("Kaart van Nederland geladen — bounds actief, 5 beschikbare stijlen.");
+                });
+                
+                // === Controls toevoegen ===
+                // Navigatie (in/uitzoomen, kompas)
+                map.addControl(new maplibregl.NavigationControl({ 
+                    showCompass: true, 
+                    visualizePitch: true 
+                }), 'top-right');
+                
+                // Fullscreen knop
+                map.addControl(new maplibregl.FullscreenControl(), 'top-right');
+                
+                // Schaalbalk (metrisch)
+                map.addControl(new maplibregl.ScaleControl({ 
+                    maxWidth: 150, 
+                    unit: 'metric' 
+                }), 'bottom-right');
+                
+                // Optioneel: Geolocatie (uit voor cleanheid, maar kan makkelijk toegevoegd)
+                // map.addControl(new maplibregl.GeolocateControl({
+                //     positionOptions: { enableHighAccuracy: true },
+                //     trackUserLocation: true
+                // }), 'top-left');
+                
+                // === Dropdown / stijlkiezer ===
+                const picker = document.getElementById('style-picker');
+                if (picker) {
+                    picker.addEventListener('change', (e) => {
+                        const selectedStyle = e.target.value;
+                        switchMapStyle(selectedStyle);
+                    });
+                }
+                
+                // Initialiseer footer met startstijl
+                updateFooterStyleName('positron');
+                
+                // Voeg extra beveiliging tegen onbedoeld uitbounds scrollen (gebeurt soms bij edge)
+                map.on('moveend', () => {
+                    // Controleer of center nog binnen redelijke grenzen valt, anders zachtjes terugzetten
+                    const center = map.getCenter();
+                    const lng = center.lng;
+                    const lat = center.lat;
+                    if (lng < 2.0 || lng > 8.5 || lat < 49.8 || lat > 54.5) {
+                        // Vloeiende correctie naar Nederlands centrum
+                        map.flyTo({ center: NETHERLANDS_CENTER, duration: 800, zoom: Math.max(map.getZoom(), 6.8) });
+                    }
+                });
+            }
+            
+            // Start de kaart zodra het DOM gereed is
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initMap);
+            } else {
+                initMap();
+            }
+        })();
+    </script>
+</body>
+</html>

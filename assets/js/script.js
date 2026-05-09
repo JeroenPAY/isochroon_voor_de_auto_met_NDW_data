@@ -63,6 +63,12 @@ function getMapStyle() {
                 "tileSize": 256,
                 "attribution": "© PDOK"
             },
+                "pdok-grijs-licht": { 
+                "type": "raster", 
+                "tiles": ["https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png"], 
+                "tileSize": 256,
+                "attribution": "© PDOK"
+            },
             "esri-satellite": { 
                 "type": "raster", 
                 "tiles": ["https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg"], 
@@ -93,14 +99,26 @@ function getMapStyle() {
                 } 
             },
             { 
+                "id": "pdok-grijs-licht-layer", 
+                "type": "raster", 
+                "source": "pdok-grijs-licht", 
+                "paint": { 
+                    "raster-brightness-max": 0.7,
+                    "raster-contrast": 0.5, 
+                    "raster-saturation": 0.0,
+                    "raster-opacity": 0.9 
+                },
+                "layout": { "visibility": "none" }
+            },
+            { 
                 "id": "esri-satellite-layer", 
                 "type": "raster", 
                 "source": "esri-satellite", 
                 "paint": {
-                    "raster-opacity": 0.9,
                     "raster-brightness-max": 0.6,
                     "raster-contrast": 0.5,
-                    "raster-saturation": 0.0
+                    "raster-saturation": 0.0,
+                    "raster-opacity": 0.9,
                 },
                 "layout": { "visibility": "none" }
             },
