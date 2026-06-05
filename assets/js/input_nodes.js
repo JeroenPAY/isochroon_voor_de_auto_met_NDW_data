@@ -8,6 +8,7 @@ class NodeSelector {
         this.hoverLayerId = 'selectable-nodes-hover';
         this.selectedNode = null;
         this.currentInputField = null;
+        this.pendingInputField = null;
         this.bindEvents();
         
         // LUISTER NAAR GEMEENTE WIJZIGINGEN OM NODES TE VERBERGEN
@@ -23,12 +24,14 @@ class NodeSelector {
         this.onNodeLeave = this.onNodeLeave.bind(this);
         this.handleMapClick = this.handleMapClick.bind(this);
         this.onGemeenteChanged = this.onGemeenteChanged.bind(this);
+        this.onNodesDataLoaded = this.onNodesDataLoaded.bind(this);
     }
     
     // NIEUW: Luister naar gemeente wijzigingen
     setupGemeenteChangeListener() {
         document.addEventListener('gemeenteChanged', this.onGemeenteChanged);
         document.addEventListener('gemeenteDeselected', this.onGemeenteChanged);
+        document.addEventListener('gemeenteNodesDataLoaded', this.onNodesDataLoaded);
     }
     
     // NIEUW: Wordt aangeroepen wanneer gemeente verandert
@@ -45,26 +48,77 @@ class NodeSelector {
         this.selectedNode = null;
     }
 
+    onNodesDataLoaded() {
+        if (!this.pendingInputField || this.areNodesVisible()) return;
+
+        const inputField = this.pendingInputField;
+        this.pendingInputField = null;
+        this.showNodes(inputField);
+    }
+
+    getNodesData() {
+        if (window.GemeenteManager?.getData) {
+            if (!window.GemeenteManager.isDataAvailable?.('nodes')) {
+                return null;
+            }
+
+            const nodes = window.GemeenteManager.getData('nodes');
+            if (!nodes?.features?.length) return null;
+
+            const allGemeenten = typeof gemeenten !== 'undefined' ? gemeenten : [];
+            const activeCodes = window.GemeenteManager.getActiveGemeenteCodes?.() || [];
+            const activeNames = activeCodes
+                .map(code => allGemeenten.find(gemeente => gemeente.code === code)?.naam)
+                .filter(Boolean);
+
+            if (!activeNames.length) return nodes;
+
+            return {
+                ...nodes,
+                features: nodes.features.filter(feature => activeNames.includes(feature.properties?.gme_naam))
+            };
+        }
+
+        return window.nodesData || null;
+    }
+
+    getNodeCoordinates(feature) {
+        const coordinates = feature?.geometry?.coordinates;
+        if (!coordinates) return null;
+        return typeof coordinates[0] === 'number' ? coordinates : coordinates[0];
+    }
+
     loadNodes() {
-        if (typeof nodesData === 'undefined') {
-            console.error('Bereikbaarheid data niet gevonden');
-            window.utils?.showNotification('Bereikbaarheid data niet gevonden', 'error', 5000);
+        const nodes = this.getNodesData();
+        if (!nodes?.features?.length) {
+            const message = window.GemeenteManager?.isDataAvailable?.('nodes') === false
+                ? 'Bereikbaarheid data wordt nog geladen'
+                : 'Bereikbaarheid data niet gevonden';
+            console.error(message);
+            window.utils?.showNotification(message, 'error', 5000);
             return false;
         }
 
         return {
             type: 'FeatureCollection',
-            features: nodesData.features.map(feature => ({
-                type: 'Feature',
-                properties: {
-                    node: feature.properties.node,
-                    gme_naam: feature.properties.gme_naam
-                },
-                geometry: {
-                    type: 'Point',
-                    coordinates: feature.geometry.coordinates[0]
-                }
-            }))
+            features: nodes.features
+                .map(feature => {
+                    const coordinates = this.getNodeCoordinates(feature);
+                    if (!coordinates) return null;
+
+                    return {
+                        type: 'Feature',
+                        properties: {
+                            node: feature.properties.node,
+                            gme_naam: feature.properties.gme_naam
+                        },
+                        geometry: {
+                            type: 'Point',
+                            coordinates
+                        }
+                    };
+                })
+                .filter(Boolean)
         };
     }
 
@@ -74,6 +128,9 @@ class NodeSelector {
         this.hideNodes();
         const dataNodes = this.loadNodes();
         if (!dataNodes?.features.length) {
+            if (window.GemeenteManager?.isDataAvailable?.('nodes') === false) {
+                this.pendingInputField = inputFieldId;
+            }
             console.warn('Geen nodes om te tonen');
             return false;
         }
@@ -265,28 +322,37 @@ class NodeSelector {
     }
 
     findNodeById(nodeId) {
-        if (typeof nodesData === 'undefined') return null;
+        const nodes = this.getNodesData();
+        if (!nodes?.features?.length) return null;
         
-        const nodeFeature = nodesData.features.find(
+        const nodeFeature = nodes.features.find(
             feature => parseInt(feature.properties.node) === parseInt(nodeId)
         );
+
+        const coordinates = this.getNodeCoordinates(nodeFeature);
         
-        return nodeFeature ? {
+        return nodeFeature && coordinates ? {
             id: nodeFeature.properties.node,
-            coordinates: nodeFeature.geometry.coordinates[0],
+            coordinates,
             gemeente: nodeFeature.properties.gme_naam
         } : null;
     }
 
     getNodesByGemeente(gemeenteNaam) {
-        if (typeof nodesData === 'undefined') return [];
+        const nodes = this.getNodesData();
+        if (!nodes?.features?.length) return [];
         
-        return nodesData.features
+        return nodes.features
             .filter(feature => feature.properties.gme_naam === gemeenteNaam)
-            .map(feature => ({
-                id: feature.properties.node,
-                coordinates: feature.geometry.coordinates[0]
-            }));
+            .map(feature => {
+                const coordinates = this.getNodeCoordinates(feature);
+                if (!coordinates) return null;
+                return {
+                    id: feature.properties.node,
+                    coordinates
+                };
+            })
+            .filter(Boolean);
     }
 
     areNodesVisible() {

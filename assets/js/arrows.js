@@ -186,6 +186,11 @@ function updateArrowFilters(gemeenteNaam) {
         console.log("updateArrowFilters: map of ARROW_CONFIGS niet beschikbaar");
         return;
     }
+
+    const gemeenteNamen = Array.isArray(gemeenteNaam) ? gemeenteNaam : [gemeenteNaam];
+    const gemeenteFilter = gemeenteNamen.length === 1
+        ? ["==", ["get", "municipalityName"], gemeenteNamen[0]]
+        : ["in", ["get", "municipalityName"], ["literal", gemeenteNamen]];
     
     // console.log(`Update arrow filters voor gemeente: ${gemeenteNaam}`);
     
@@ -196,7 +201,7 @@ function updateArrowFilters(gemeenteNaam) {
             if (config.source === 'rvm_segments') {
                 // Driving arrows (roze) - voeg gemeentefilter toe
                 newFilter = ["all", 
-                    ["==", ["get", "municipalityName"], gemeenteNaam], 
+                    gemeenteFilter, 
                     ["==", ["get", "drivingDirection"], config.id.includes('-H') ? "H" : "T"]
                 ];
             } else {

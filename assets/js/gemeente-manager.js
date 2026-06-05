@@ -2,23 +2,62 @@
 // Vereenvoudigde Gemeente Manager - alleen isochroon functionaliteit
 
 const boundsCache = new Map(); // Alleen voor bounds van gemeenten
+const dataFileCache = new Map();
 
 let current = {
     code: null,
+    activeCodes: [],
     roadCost: null,
     nodes: null,
     loading: { roadCost: false, nodes: false }
 };
 
+let omstrekenEnabled = false;
+let loadSequence = 0;
+
+function getGemeenteCodesForLoad(gemeenteCode) {
+    const surroundingCodes = omstrekenEnabled && typeof omstreken !== 'undefined'
+        ? (omstreken[gemeenteCode] || [])
+        : [];
+
+    return [...new Set([gemeenteCode, ...surroundingCodes])]
+        .filter(code => code && code !== '0000');
+}
+
+function getGemeenteNamesForCodes(codes) {
+    return codes
+        .map(code => gemeenten.find(g => g.code === code)?.naam)
+        .filter(Boolean);
+}
+
+function getMunicipalityFilterForCodes(codes) {
+    const names = getGemeenteNamesForCodes(codes);
+    if (names.length === 1) {
+        return ["==", ["get", "municipalityName"], names[0]];
+    }
+    return ["in", ["get", "municipalityName"], ["literal", names]];
+}
+
+function mergeFeatureCollections(collections, name) {
+    return {
+        type: 'FeatureCollection',
+        name,
+        features: collections.flatMap(collection => collection?.features || [])
+    };
+}
+
 function loadGemeenteData(gemeenteCode) {
     console.log(`[Gemeente Manager] Laden gemeente ${gemeenteCode}...`);
+    const loadId = ++loadSequence;
     
     // Verwijder oude scripts en globale variabelen
     cleanupGlobals();
     
     // Reset current object
+    const activeCodes = getGemeenteCodesForLoad(gemeenteCode);
     current = {
         code: gemeenteCode,
+        activeCodes,
         roadCost: null,
         nodes: null,
         loading: { roadCost: false, nodes: false }
@@ -28,14 +67,15 @@ function loadGemeenteData(gemeenteCode) {
     document.dispatchEvent(new CustomEvent('gemeenteLoadingStarted', { detail: { gemeenteCode } }));
     
     // Laad alle data
-    loadAllData(gemeenteCode);
+    loadAllData(gemeenteCode, activeCodes, loadId);
     
     // Update map en events
     const gemeenteInfo = gemeenten.find(g => g.code === gemeenteCode);
     if (gemeenteInfo && window.map) {
-        window.map.setFilter("rvm-lines", ["==", ["get", "municipalityName"], gemeenteInfo.naam]);
+        window.map.setFilter("rvm-lines", getMunicipalityFilterForCodes(activeCodes));
+        window.updateArrowFilters?.(getGemeenteNamesForCodes(activeCodes));
         document.dispatchEvent(new CustomEvent('gemeenteChanged', { 
-            detail: { gemeenteCode, gemeenteInfo, gemeenteNaam: gemeenteInfo.naam } 
+            detail: { gemeenteCode, gemeenteInfo, gemeenteNaam: gemeenteInfo.naam, activeCodes } 
         }));
         zoomToGemeente(gemeenteInfo);
     }
@@ -44,7 +84,7 @@ function loadGemeenteData(gemeenteCode) {
     updateGemeenteInput(gemeenteCode);
 }
 
-function loadAllData(gemeenteCode) {
+function loadAllDataLegacy(gemeenteCode) {
     const baseUrl = `data/gemeentes/${gemeenteCode}`;
     
     const loadDataset = (url, varName) => 
@@ -125,9 +165,142 @@ function loadAllData(gemeenteCode) {
     });
 }
 
+async function loadAllData(gemeenteCode, codesToLoad = [gemeenteCode], loadId = loadSequence) {
+    const nodeCollections = await loadCollectionsForCodes(codesToLoad, 'nodes', loadId);
+
+    if (loadId !== loadSequence) return;
+
+    current.nodes = mergeFeatureCollections(nodeCollections, `nodes_${codesToLoad.join('_')}`);
+    current.loading.nodes = true;
+    window.nodesData = current.nodes;
+
+    document.dispatchEvent(new CustomEvent('gemeenteNodesDataLoaded', {
+        detail: {
+            gemeenteCode,
+            activeCodes: [...codesToLoad],
+            nodes: current.nodes
+        }
+    }));
+
+    const roadCostCollections = await loadCollectionsForCodes(codesToLoad, 'roadCost', loadId);
+
+    if (loadId !== loadSequence) return;
+
+    current.roadCost = mergeFeatureCollections(roadCostCollections, `roadCost_${codesToLoad.join('_')}`);
+    current.loading.roadCost = true;
+    window.roadCost = current.roadCost;
+
+    const availableData = {
+        roadCost: current.roadCost.features.length > 0,
+        nodes: current.nodes.features.length > 0
+    };
+
+    document.dispatchEvent(new CustomEvent('gemeenteAllDataLoaded', {
+        detail: { 
+            gemeenteCode,
+            activeCodes: [...codesToLoad],
+            availableData,
+            roadCost: current.roadCost,
+            nodes: current.nodes
+        }
+    }));
+
+    console.log(`[Gemeente Manager] Data geladen voor codes: ${codesToLoad.join(', ')}`, availableData);
+
+    if (window.utils?.showNotification) {
+        const gemeenteNaam = gemeenten.find(g => g.code === gemeenteCode)?.naam || gemeenteCode;
+        const extraCount = Math.max(0, codesToLoad.length - 1);
+        window.utils.showNotification(
+            extraCount ? `${gemeenteNaam} + ${extraCount} omstreken geladen` : `Gemeente ${gemeenteNaam} geladen`,
+            'success'
+        );
+    }
+}
+
+async function loadDatasetForCode(url, varName, gemeenteCode) {
+    try {
+        return await loadDataFile(url, varName, gemeenteCode);
+    } catch (error) {
+        console.warn(`${varName} niet beschikbaar voor ${gemeenteCode}:`, error.message);
+        return null;
+    }
+}
+
+async function loadCollectionsForCodes(codesToLoad, varName, loadId) {
+    const fetchResults = await Promise.all(codesToLoad.map(async code => {
+        const baseUrl = `data/gemeentes/${code}`;
+        const url = `${baseUrl}/${varName === 'nodes' ? 'nodes' : 'roadCost'}.js`;
+        const gemeenteNaam = gemeenten.find(g => g.code === code)?.naam || code;
+
+        try {
+            const data = await loadDataFileFast(url, varName, code);
+            if (data) {
+                console.log(`[Gemeente Manager] ${varName} geladen voor ${gemeenteNaam}`);
+            }
+            return { code, url, gemeenteNaam, data };
+        } catch (error) {
+            return { code, url, gemeenteNaam, data: null, error };
+        }
+    }));
+
+    const collections = fetchResults
+        .filter(result => result.data)
+        .map(result => result.data);
+
+    for (const result of fetchResults.filter(result => !result.data)) {
+        if (loadId !== loadSequence) return collections;
+
+        const fallbackData = await loadDatasetForCode(result.url, varName, result.code);
+        if (fallbackData) {
+            collections.push(fallbackData);
+            console.log(`[Gemeente Manager] ${varName} geladen voor ${result.gemeenteNaam}`);
+        }
+    }
+
+    return collections;
+}
+
+async function loadDataFile(url, varName, gemeenteCode) {
+    try {
+        return await loadDataFileFast(url, varName, gemeenteCode);
+    } catch (error) {
+        return loadScript(url, varName, gemeenteCode);
+    }
+}
+
+async function loadDataFileFast(url, varName, gemeenteCode) {
+    const cacheKey = `${varName}:${gemeenteCode}:${url}`;
+    if (dataFileCache.has(cacheKey)) {
+        return dataFileCache.get(cacheKey);
+    }
+
+    const promise = fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.text();
+        })
+        .then(text => parseAssignedData(text, varName));
+
+    dataFileCache.set(cacheKey, promise);
+    return promise;
+}
+
+function parseAssignedData(text, varName) {
+    const objectStart = text.indexOf('{');
+    const objectEnd = text.lastIndexOf('}');
+    if (objectStart === -1 || objectEnd === -1 || objectEnd <= objectStart) {
+        throw new Error(`Geen object gevonden voor ${varName}`);
+    }
+
+    return JSON.parse(text.slice(objectStart, objectEnd + 1));
+}
+
 function loadScript(url, varName, gemeenteCode) {
     return new Promise((resolve, reject) => {
         console.log(`[Gemeente Manager] Laden: ${url}`);
+        clearDatasetGlobals(varName);
         
         // Maak unieke script ID om later te kunnen verwijderen
         const scriptId = `script-${gemeenteCode}-${varName}-${Date.now()}`;
@@ -169,7 +342,7 @@ function loadScript(url, varName, gemeenteCode) {
                 } catch (error) {
                     reject(error);
                 }
-            }, 200);
+            }, 0);
         };
         
         script.onerror = function() {
@@ -186,6 +359,18 @@ function loadScript(url, varName, gemeenteCode) {
         
         // Voeg script toe aan DOM
         document.head.appendChild(script);
+    });
+}
+
+function clearDatasetGlobals(varName) {
+    const names = varName === 'nodes' ? ['nodes', 'nodesData'] : [varName];
+    names.forEach(name => {
+        delete window[name];
+        try {
+            if (eval(`typeof ${name} !== 'undefined'`)) {
+                eval(`${name} = null`);
+            }
+        } catch (e) {}
     });
 }
 
@@ -454,6 +639,19 @@ function clearCache() {
     console.log('[Gemeente Manager] Bounds cache gewist');
 }
 
+function setOmstrekenEnabled(enabled) {
+    omstrekenEnabled = !!enabled;
+    console.log(`[Gemeente Manager] Omstreken ${omstrekenEnabled ? 'aan' : 'uit'}`);
+
+    if (current.code) {
+        loadGemeenteData(current.code);
+    }
+}
+
+function isOmstrekenEnabled() {
+    return omstrekenEnabled;
+}
+
 // Exporteer functies voor gebruik in andere scripts
 window.GemeenteManager = {
     loadGemeenteData,
@@ -464,6 +662,9 @@ window.GemeenteManager = {
     isDataAvailable,
     isAllDataLoaded,
     getAllGemeenten,
+    getActiveGemeenteCodes: () => [...current.activeCodes],
+    setOmstrekenEnabled,
+    isOmstrekenEnabled,
     zoomToGemeente,
     clearCache
 };

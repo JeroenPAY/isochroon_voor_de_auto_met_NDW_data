@@ -11,6 +11,7 @@ const CalculationsSidebar = (function() {
         isochroon: {
             start: 'isochroonStartNode', 
             limitValue: 'limitValue', 
+            omstreken: 'omstrekenToggle',
             calculate: 'calculateIsochroon', 
             clear: 'clearIsochroon', 
             visibility: 'toggleIsochroonVisibility'
@@ -78,9 +79,20 @@ const CalculationsSidebar = (function() {
         });
         
         getElement(elementIds.isochroon.start)?.addEventListener('input', () => handleIsochroonStartInput());
+        getElement(elementIds.isochroon.omstreken)?.addEventListener('change', e => handleOmstrekenToggle(e.target.checked));
         
         setupGemeenteChangeListener();
         setupNodeSelectorListener();
+    }
+
+    function handleOmstrekenToggle(enabled) {
+        if (!window.GemeenteManager?.setOmstrekenEnabled) {
+            showResult(null, 'Omstreken functionaliteit niet beschikbaar.', 'error');
+            return;
+        }
+
+        showResult(null, enabled ? 'Omstreken laden...' : 'Omstreken uitgeschakeld, gemeente opnieuw laden...', 'loading');
+        window.GemeenteManager.setOmstrekenEnabled(enabled);
     }
     
     function setupGemeenteChangeListener() {
@@ -225,6 +237,11 @@ const CalculationsSidebar = (function() {
             limitInput.value = '2.5';
             limitInput.placeholder = 'minuten';
         }
+
+        const omstrekenToggle = getElement(elementIds.isochroon.omstreken);
+        if (omstrekenToggle && window.GemeenteManager?.isOmstrekenEnabled) {
+            omstrekenToggle.checked = window.GemeenteManager.isOmstrekenEnabled();
+        }
     }
     
     function setupIsochroonStartButton() {
@@ -278,7 +295,10 @@ const CalculationsSidebar = (function() {
                 const nodesVisible = window.NodeSelector.toggleNodes('isochroonStartNode');
                 
                 if (!nodesVisible) {
-                    window.utils?.showNotification('Geen startpunten beschikbaar voor huidige gemeente', 'warning', 3000);
+                    const message = window.GemeenteManager?.isDataAvailable?.('nodes') === false
+                        ? 'Startpunten worden nog geladen'
+                        : 'Geen startpunten beschikbaar voor huidige gemeente';
+                    window.utils?.showNotification(message, 'warning', 3000);
                 }
             } else {
                 console.error('[CalculationsSidebar] NodeSelector niet beschikbaar');
