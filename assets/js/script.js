@@ -149,7 +149,6 @@ function setupMapFeatures() {
     
     window.addArrowLayers?.(map) || console.error("[Script] addArrowLayers niet gevonden!");
     
-    setupBasemapRadio();
     window.setupPopupHandlers?.(map);
     
     // Initialiseer isochroon calculator via sidebar
@@ -157,47 +156,10 @@ function setupMapFeatures() {
         window.CalculationsSidebar.init(map);
     }
     
-    // Update sidebar voor Helmond
-    if (window.CalculationsSidebar && window.CalculationsSidebar.updateForGemeente) {
-        window.CalculationsSidebar.updateForGemeente('Helmond');
-    }
-}
-
-function setupBasemapRadio() {
-    const radioButtons = document.querySelectorAll('input[name="basemap"]');
-    if (!radioButtons.length) return console.warn("[Script] Geen basemap radio buttons");
-    
-    console.log("[Script] Setup basemap radio");
-    
-    const currentRadio = document.querySelector(`input[name="basemap"][value="${currentBasemap}"]`);
-    currentRadio && (currentRadio.checked = true);
-    
-    radioButtons.forEach(radio => {
-        radio.addEventListener('change', function() {
-            if (!this.checked) return;
-            
-            const basemap = this.value;
-            console.log("[Script] Basemap gewijzigd:", basemap);
-            
-            if (basemap === 'esri-satellite') {
-                map.setLayoutProperty('pdok-grijs-layer', 'visibility', 'none');
-                map.setLayoutProperty('esri-satellite-layer', 'visibility', 'visible');
-            } else {
-                map.setLayoutProperty('esri-satellite-layer', 'visibility', 'none');
-                map.setLayoutProperty('pdok-grijs-layer', 'visibility', 'visible');
-            }
-            
-            currentBasemap = basemap;
-            window.utils?.showNotification(
-                `Achtergrond: ${basemap === 'esri-satellite' ? 'Luchtfoto' : 'PDOK Grijs'}`,
-                'info'
-            );
-        });
-    });
 }
 
 function positionSidebar() {
-    const sidebar = document.getElementById('calculations-sidebar');
+    const sidebar = document.getElementById('calculationsSidebar');
     if (sidebar && map) {
         const canvas = map.getCanvas();
         if (canvas) {

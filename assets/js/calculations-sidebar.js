@@ -11,7 +11,6 @@ const CalculationsSidebar = (function() {
         isochroon: {
             start: 'isochroonStartNode', 
             limitValue: 'limitValue', 
-            result: 'isochroonResult',
             calculate: 'calculateIsochroon', 
             clear: 'clearIsochroon', 
             visibility: 'toggleIsochroonVisibility'
@@ -23,11 +22,38 @@ const CalculationsSidebar = (function() {
     }
     
     function showResult(element, message, type = 'info') {
-        if (!element) return;
+        if (!element) {
+            notify(message, type);
+            return;
+        }
         const colors = { error: '#dc3545', success: '#28a745', loading: '#6c757d' };
         const style = colors[type] ? `color: ${colors[type]}; ${type === 'loading' ? 'font-style: italic;' : ''}` : '';
         element.innerHTML = style ? `<span style="${style}">${message}</span>` : message;
         element.scrollTop = 0;
+    }
+
+    function notify(message, type = 'info') {
+        const plainMessage = String(message).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!plainMessage) return;
+
+        if (type !== 'loading') {
+            window.utils?.showNotification?.(plainMessage, type === 'error' ? 'error' : type);
+        }
+
+        const status = document.getElementById('statusMsg');
+        if (status && type !== 'loading') {
+            status.style.backgroundColor = type === 'error' ? '#b91c1c' : '#0f172a';
+            status.innerText = plainMessage;
+            status.style.display = 'block';
+            status.style.opacity = '1';
+            setTimeout(() => { status.style.opacity = '0'; }, 3000);
+        }
+
+        if (type === 'error') {
+            console.warn(`[CalculationsSidebar] ${plainMessage}`);
+        } else {
+            console.log(`[CalculationsSidebar] ${plainMessage}`);
+        }
     }
     
     function setupHandlers() {
@@ -305,8 +331,12 @@ const CalculationsSidebar = (function() {
             return;
         }
         
-        const resultHTML = createIsochroonResultHTML(start, numericLimit, result);
-        showResult(resultDiv, resultHTML, 'success');
+        if (resultDiv) {
+            const resultHTML = createIsochroonResultHTML(start, numericLimit, result);
+            showResult(resultDiv, resultHTML, 'success');
+        } else {
+            showResult(resultDiv, `${result.edges.length} wegen bereikbaar binnen ${numericLimit} minuten`, 'success');
+        }
         
         if (mapInstance && result.edges.length > 0) {
             ensureIsochroonVisibility();
@@ -317,12 +347,13 @@ const CalculationsSidebar = (function() {
             detail: { success: true, edges: result.edges, stats: result.stats }
         }));
         
-        window.utils?.showNotification(`${result.edges.length} wegen bereikbaar binnen ${numericLimit} minuten`, 'success');
     }
     
     function handleClearIsochroon() {
-        getElement(elementIds.isochroon.start).value = '';
-        getElement(elementIds.isochroon.limitValue).value = '2.5';
+        const startInput = getElement(elementIds.isochroon.start);
+        const limitInput = getElement(elementIds.isochroon.limitValue);
+        if (startInput) startInput.value = '';
+        if (limitInput) limitInput.value = '2.5';
         
         showResult(getElement(elementIds.isochroon.result), 
                    "Vul startnode en tijdlimiet (minuten) in om bereikbaar gebied te berekenen.", 
@@ -459,19 +490,12 @@ const CalculationsSidebar = (function() {
     }
     
     function updateForGemeente(gemeenteNaam) {
-        const isEnabled = gemeenteNaam === 'Helmond';
         Object.values(elementIds.isochroon).forEach(id => {
             const element = getElement(id);
-            if (element) element.disabled = !isEnabled;
+            if (element) element.disabled = false;
         });
-        
-        if (!isEnabled) {
-            showResult(getElement(elementIds.isochroon.result), 
-                      'Isochroonberekening momenteel alleen beschikbaar voor Helmond', 'warning');
-        } else {
-            showResult(getElement(elementIds.isochroon.result), 
-                      "Vul startnode en tijdlimiet (minuten) in om bereikbaar gebied te berekenen.", 'info');
-        }
+
+        console.log(`[CalculationsSidebar] Isochroon actief voor ${gemeenteNaam}`);
     }
     
     return {

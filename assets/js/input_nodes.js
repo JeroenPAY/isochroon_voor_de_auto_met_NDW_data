@@ -134,25 +134,11 @@ class NodeSelector {
     }
 
     disableMapPopups() {
-        // Disable alle popup handlers op de interactieve lagen
-        if (window.INTERACTIVE_LAYERS && window.map) {
-            window.INTERACTIVE_LAYERS.forEach(layerId => {
-                // Verwijder click handlers voor popups
-                window.map.off('click', layerId);
-                // Verwijder hover handlers voor popups
-                window.map.off('mouseenter', layerId);
-                window.map.off('mouseleave', layerId);
-            });
-        }
+        // Popup handlers blijven geregistreerd; ze negeren clicks zolang nodes zichtbaar zijn.
     }
 
     enableMapPopups() {
-        // Herstel de popup handlers na het selecteren
-        if (window.INTERACTIVE_LAYERS && window.map && window.setupPopupHandlers) {
-            // Opnieuw setup van popup handlers
-            window.setupClickHandlers(window.map);
-            window.setupCursorInteractions(window.map);
-        }
+        // Geen herstel nodig, zie disableMapPopups.
     }
 
     handleMapClick(e) {

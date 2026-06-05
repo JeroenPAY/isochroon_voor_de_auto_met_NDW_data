@@ -23,10 +23,15 @@ const CLICK_HANDLERS = {
 
 // Interactieve lagen - ALLEEN nodes_points en rvm-lines (GEEN pijltjes!)
 const INTERACTIVE_LAYERS = Object.keys(CLICK_HANDLERS);
+const registeredPopupLayers = new Set();
+const registeredCursorLayers = new Set();
 
 // Popup click handler - GEFIXTE VERSIE
-function setupClickHandlers(map) {
-    INTERACTIVE_LAYERS.forEach(layerId => {
+function setupClickHandlers(map, layerIds = INTERACTIVE_LAYERS) {
+    layerIds.forEach(layerId => {
+        if (!map.getLayer(layerId) || registeredPopupLayers.has(layerId)) return;
+        registeredPopupLayers.add(layerId);
+
         map.on("click", layerId, e => {
             // Controleer of nodes zichtbaar zijn - als dat zo is, geen popup tonen
             if (window.NodeSelector && window.NodeSelector.areNodesVisible()) {
@@ -134,8 +139,11 @@ function setupClickHandlers(map) {
 }
 
 // interactive cursor changes
-function setupCursorInteractions(map) {
-    INTERACTIVE_LAYERS.forEach(layer => {
+function setupCursorInteractions(map, layerIds = INTERACTIVE_LAYERS) {
+    layerIds.forEach(layer => {
+        if (!map.getLayer(layer) || registeredCursorLayers.has(layer)) return;
+        registeredCursorLayers.add(layer);
+
         map.on("mouseenter", layer, () => {
 
             if (!window.NodeSelector || !window.NodeSelector.areNodesVisible()) {
@@ -159,18 +167,28 @@ function setupPopupHandlers(map) {
 
     console.log("Setup popup handlers voor:", INTERACTIVE_LAYERS);
 
-    // Wacht tot de lagen bestaan voordat we handlers toevoegen
-    function addHandlersWhenLayersExist() {
-        const allLayersExist = INTERACTIVE_LAYERS.every(layerId => map.getLayer(layerId));
+    let attempts = 0;
+    const maxAttempts = 50;
 
-        if (allLayersExist) {
-            setupClickHandlers(map);
-            setupCursorInteractions(map);
-            console.log("Popup handlers toegevoegd aan:", INTERACTIVE_LAYERS);
-        } else {
-            // Wacht en probeer opnieuw
-            setTimeout(addHandlersWhenLayersExist, 100);
+    // Wacht kort op de hoofdlaag. Optionele lagen blokkeren initialisatie niet.
+    function addHandlersWhenLayersExist() {
+        const availableLayers = INTERACTIVE_LAYERS.filter(layerId => map.getLayer(layerId));
+
+        if (availableLayers.length > 0) {
+            setupClickHandlers(map, availableLayers);
+            setupCursorInteractions(map, availableLayers);
+            console.log("Popup handlers toegevoegd aan:", availableLayers);
         }
+
+        if (map.getLayer('rvm-lines') || attempts >= maxAttempts) {
+            if (attempts >= maxAttempts) {
+                console.warn("Popup handlers niet voor alle lagen toegevoegd:", INTERACTIVE_LAYERS.filter(layerId => !map.getLayer(layerId)));
+            }
+            return;
+        }
+
+        attempts++;
+        setTimeout(addHandlersWhenLayersExist, 100);
     }
 
     // Start het proces

@@ -168,8 +168,8 @@ function handleBasemapChange(basemapType) {
 }
 
 const layers = {
+    'pdok-grijs-layer': false,
     'esri-satellite-layer': false,  
-    'background-layer': false,
     'pdok-grijs-licht-layer': false
 };
 
@@ -193,7 +193,7 @@ function showEsriSatellite() {
     setActiveLayer('esri-satellite-layer');
 }
 function showGrayBackground() {
-    setActiveLayer('background-layer');
+    setActiveLayer('pdok-grijs-layer');
 }
 function showGrayLightBackground() {
     setActiveLayer('pdok-grijs-licht-layer');

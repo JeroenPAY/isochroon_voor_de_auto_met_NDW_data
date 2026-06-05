@@ -190,6 +190,10 @@ function loadScript(url, varName, gemeenteCode) {
 }
 
 function getGlobalVar(varName) {
+    if (varName === 'nodes' && typeof nodesData !== 'undefined') {
+        return nodesData;
+    }
+
     // Eerst proberen via window object
     if (window[varName] !== undefined) {
         return window[varName];
@@ -218,7 +222,7 @@ function cleanupGlobals() {
     });
     
     // Wis alle globale variabelen
-    const globalVars = ['roadCost', 'nodes'];
+    const globalVars = ['roadCost', 'nodes', 'nodesData'];
     
     globalVars.forEach(varName => {
         // Verwijder van window object
